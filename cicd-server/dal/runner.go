@@ -1,0 +1,43 @@
+package dal
+
+import (
+	"cicd-server/types"
+
+	"gorm.io/gorm"
+)
+
+type Runner struct {
+	gorm.Model
+	Name     string
+	Endpoint string
+	Status   RunnerStatus
+	Message  string
+	Busy     bool
+	Enable   bool `gorm:"default:1"`
+}
+
+type RunnerStatus string
+
+const (
+	Online  RunnerStatus = "online"
+	Offline RunnerStatus = "offline"
+)
+
+func (r *Runner) Format() types.RunnerResp {
+	resp := types.RunnerResp{
+		ID:        r.ID,
+		Name:      r.Name,
+		Status:    string(r.Status),
+		Enable:    r.Enable,
+		Busy:      r.Busy,
+		CreatedAt: r.CreatedAt.Format("2006-01-02 15:04:05"),
+	}
+
+	var labels []RunnerLabel
+	if err := DB.Find(&labels, "runner_id = ?", r.ID).Error; err == nil {
+		for _, label := range labels {
+			resp.Labels = append(resp.Labels, label.Label)
+		}
+	}
+	return resp
+}
