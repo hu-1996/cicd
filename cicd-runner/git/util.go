@@ -1,18 +1,38 @@
 package git
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
+// 判断 URL 是否是 SSH URL
+func isSSHURL(url string) bool {
+	return len(url) >= 4 && url[:4] == "git@"
+}
+
 func GitCloneOrPull(dir, repoUrl, branch, username, password string) (string, error) {
-	var auth *http.BasicAuth
+	var auth transport.AuthMethod
 	if username != "" && password != "" {
 		auth = &http.BasicAuth{
 			Username: username,
 			Password: password,
+		}
+	} else if isSSHURL(repoUrl) {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		privateKeyFile := filepath.Join(homeDir, ".ssh", "id_rsa")
+		_, err = os.Stat(privateKeyFile)
+		if err == nil {
+			auth, _ = ssh.NewPublicKeysFromFile("git", privateKeyFile, "")
 		}
 	}
 
@@ -31,11 +51,16 @@ func GitCloneOrPull(dir, repoUrl, branch, username, password string) (string, er
 
 	var repo *git.Repository
 	if clone {
-		r, err := git.PlainClone(dir, false, &git.CloneOptions{
-			URL:      repoUrl,
-			Progress: os.Stdout,
-			Auth:     auth,
-		})
+		opts := git.CloneOptions{
+			URL:           repoUrl,
+			Progress:      os.Stdout,
+			ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", branch)),
+			SingleBranch:  true,
+		}
+		if auth != nil {
+			opts.Auth = auth
+		}
+		r, err := git.PlainClone(dir, false, &opts)
 		if err != nil {
 			return "", err
 		}
@@ -49,10 +74,15 @@ func GitCloneOrPull(dir, repoUrl, branch, username, password string) (string, er
 		if err != nil {
 			return "", err
 		}
-		err = w.Pull(&git.PullOptions{
-			RemoteName: "origin",
-			Auth:       auth,
-		})
+		opts := git.PullOptions{
+			RemoteName:    "origin",
+			ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", branch)),
+			SingleBranch:  true,
+		}
+		if auth != nil {
+			opts.Auth = auth
+		}
+		err = w.Pull(&opts)
 		if err != nil && err != git.NoErrAlreadyUpToDate {
 			return "", err
 		}

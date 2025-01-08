@@ -97,7 +97,7 @@ func Run(n, su string) {
 						addLog(job.JobRunner.ID, err.Error())
 						continue
 					}
-					addLog(job.JobRunner.ID, fmt.Sprintf("git clone or pull success, commit id: %s", commitId))
+					addLog(job.JobRunner.ID, fmt.Sprintf("git clone or pull success, branch: %s, commit id: %s", job.Git.Branch, commitId))
 				}
 			}
 

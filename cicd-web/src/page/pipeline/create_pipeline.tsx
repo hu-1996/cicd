@@ -195,7 +195,6 @@ export default function NewPipeline() {
                 <Form.Item
                   label="用户名"
                   name="username"
-                  rules={[{ required: true, message: "请输入用户名" }]}
                 >
                   <Input placeholder="请输入用户名" />
                 </Form.Item>
@@ -203,7 +202,6 @@ export default function NewPipeline() {
                 <Form.Item
                   label="密码"
                   name="password"
-                  rules={[{ required: true, message: "请输入密码" }]}
                 >
                   <Input placeholder="请输入密码" />
                 </Form.Item>

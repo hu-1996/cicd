@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"strings"
 
 	"cicd-server/git"
 	"cicd-server/types"
@@ -19,14 +18,11 @@ func TestGit(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	repoSplit := strings.Split(req.Repository, "/")
-	repoName := strings.TrimSuffix(repoSplit[len(repoSplit)-1], ".git")
-
-	commitId, err := git.TestClone(repoName, req.Repository, req.Branch, req.Username, req.Password)
+	err := git.TestConnect(req.Repository, req.Username, req.Password)
 	if err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(consts.StatusOK, utils.H{"commit_id": commitId})
+	c.JSON(consts.StatusOK, utils.H{"message": "success"})
 }

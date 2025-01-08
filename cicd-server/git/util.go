@@ -2,44 +2,49 @@ package git
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
-func TestClone(name, repoUrl, branch, username, password string) (string, error) {
-	var auth *http.BasicAuth
+// 判断 URL 是否是 SSH URL
+func isSSHURL(url string) bool {
+	return len(url) >= 4 && url[:4] == "git@"
+}
+
+func TestConnect(repoUrl, username, password string) error {
+	var auth transport.AuthMethod
 	if username != "" && password != "" {
 		auth = &http.BasicAuth{
 			Username: username,
 			Password: password,
 		}
+	} else if isSSHURL(repoUrl) {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return err
+		}
+		privateKeyFile := filepath.Join(homeDir, ".ssh", "id_rsa")
+		_, err = os.Stat(privateKeyFile)
+		if err == nil {
+			auth, _ = ssh.NewPublicKeysFromFile("git", privateKeyFile, "")
+		}
 	}
 
-	dir, err := os.MkdirTemp("", name)
+	opts := git.ListOptions{}
+	if auth != nil {
+		opts.Auth = auth
+	}
+	_, err := git.NewRemote(nil, &config.RemoteConfig{
+		URLs: []string{repoUrl},
+	}).List(&opts)
 	if err != nil {
-		return "", err
-	}
-	defer os.RemoveAll(dir)
-
-	repo, err := git.PlainClone(dir, false, &git.CloneOptions{
-		URL:      repoUrl,
-		Progress: os.Stdout,
-		Auth:     auth,
-	})
-	if err != nil {
-		return "", err
+		return err
 	}
 
-	head, err := repo.Head()
-	if err != nil {
-		return "", err
-	}
-
-	commit, err := repo.CommitObject(head.Hash())
-	if err != nil {
-		return "", err
-	}
-
-	return commit.ID().String(), nil
+	return nil
 }
