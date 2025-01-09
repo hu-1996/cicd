@@ -20,12 +20,27 @@ func main() {
 
 	h := server.Default(server.WithHostPorts(":8029"))
 
+	h.LoadHTMLGlob("./web/views/*")
+
+	prefix := "/assets"
+	root := "./web/assets"
+	fs := &app.FS{Root: root, PathRewrite: getPathRewriter(prefix)}
+	h.StaticFS(prefix, fs)
+
+	h.GET("/*path", func(c context.Context, ctx *app.RequestContext) {
+		ctx.HTML(200, "index.html", nil)
+	})
+
 	h.POST("/api/login", handler.Login)
+
+	h.POST("/api/register_runner", handler.RegisterRunner)
+
+	h.POST("/api/events/:job_runner_id", handler.Events)
+	h.POST("/api/logs/:job_runner_id", handler.Log)
 
 	h.Use(mws()...)
 	h.GET("/api/userinfo", handler.UserInfo)
 
-	h.POST("/api/register_runner", handler.RegisterRunner)
 	h.GET("/api/list_runner", handler.ListRunner)
 	h.PUT("/api/enable_runner/:id", handler.EnableRunner)
 	h.PUT("/api/set_runner_busy/:id", handler.SetRunnerBusy)
@@ -48,23 +63,9 @@ func main() {
 	h.PUT("/api/update_pipeline/:id", handler.UpdatePipeline)
 	h.DELETE("/api/delete_pipeline/:id", handler.DeletePipeline)
 
-	h.POST("/api/events/:job_runner_id", handler.Events)
-	h.POST("/api/logs/:job_runner_id", handler.Log)
-
 	h.POST("/api/test_git", handler.TestGit)
 
 	// h.StaticFS("/", &app.FS{Root: "./../cicd-web/dist", GenerateIndexPages: true, IndexNames: []string{"index.html"}})
-
-	h.LoadHTMLGlob("./web/views/*")
-
-	prefix := "/assets"
-	root := "./web/assets"
-	fs := &app.FS{Root: root, PathRewrite: getPathRewriter(prefix)}
-	h.StaticFS(prefix, fs)
-
-	h.GET("/*path", func(c context.Context, ctx *app.RequestContext) {
-		ctx.HTML(200, "index.html", nil)
-	})
 
 	h.Spin()
 }
