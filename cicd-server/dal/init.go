@@ -2,6 +2,7 @@ package dal
 
 import (
 	"log"
+	"os"
 
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/glebarez/sqlite"
@@ -13,6 +14,26 @@ var DB *gorm.DB
 
 func Init() {
 	DB = initSqlite()
+
+	initUser()
+}
+
+func initUser() {
+	user := User{
+		Username: "admin",
+		Password: "admin",
+	}
+	username := os.Getenv("CICD_ADMIN_USERNAME")
+	if username != "" {
+		user.Username = username
+	}
+	password := os.Getenv("CICD_ADMIN_PASSWORD")
+	if password != "" {
+		user.Password = password
+	}
+	if err := user.Create(); err != nil {
+		log.Fatalf("create user error: %s", err)
+	}
 }
 
 func initSqlite() *gorm.DB {
@@ -24,9 +45,10 @@ func initSqlite() *gorm.DB {
 		log.Fatalf("gorm open database error: %s", err)
 	}
 
-	if err = DB.AutoMigrate(&Pipeline{}, &Step{}, &Job{}, &JobRunner{}, &Runner{}, &RunnerLabel{}, &Git{}); err != nil {
+	if err = DB.AutoMigrate(&Pipeline{}, &Step{}, &Job{}, &JobRunner{}, &Runner{}, &RunnerLabel{}, &Git{}, &User{}); err != nil {
 		panic(err)
 	}
+
 	hlog.Info("sqlite init success")
 	return DB
 }

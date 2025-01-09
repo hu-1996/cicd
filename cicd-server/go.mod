@@ -5,11 +5,14 @@ go 1.23.4
 require (
 	github.com/cloudwego/hertz v0.9.4
 	github.com/glebarez/sqlite v1.11.0
+	github.com/go-git/go-git/v5 v5.13.1
+	github.com/hertz-contrib/paseto v0.0.0-20230508023022-71af6635a26c
 	github.com/samber/lo v1.47.0
 	gorm.io/gorm v1.25.12
 )
 
 require (
+	aidanwoods.dev/go-paseto v1.3.0 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v1.1.3 // indirect
@@ -27,7 +30,6 @@ require (
 	github.com/glebarez/go-sqlite v1.21.2 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.1 // indirect
-	github.com/go-git/go-git/v5 v5.13.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect

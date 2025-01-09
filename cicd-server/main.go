@@ -10,6 +10,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
+	"github.com/hertz-contrib/paseto"
 )
 
 func main() {
@@ -18,6 +19,11 @@ func main() {
 	go jobexec.StartEventProcess()
 
 	h := server.Default(server.WithHostPorts(":8029"))
+
+	h.POST("/api/login", handler.Login)
+
+	h.Use(mws()...)
+	h.GET("/api/userinfo", handler.UserInfo)
 
 	h.POST("/api/register_runner", handler.RegisterRunner)
 	h.GET("/api/list_runner", handler.ListRunner)
@@ -103,5 +109,11 @@ func getPathRewriter(prefix string) app.PathRewriteFunc {
 			path = append([]byte("/"), path...)
 		}
 		return path
+	}
+}
+
+func mws() []app.HandlerFunc {
+	return []app.HandlerFunc{
+		paseto.New(paseto.WithTokenPrefix("Bearer ")),
 	}
 }

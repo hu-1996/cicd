@@ -10,6 +10,10 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cicd-server/main.go",
+            "env": {
+                "CICD_ADMIN_USERNAME": "admin",
+                "CICD_ADMIN_PASSWORD": "123456"
+            }
         },
         {
             "name": "debug cicd-runner",

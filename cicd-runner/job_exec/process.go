@@ -122,7 +122,7 @@ func Run(n, su string) {
 					cmd.Dir = dir
 					hlog.Infof("run command: %s", command)
 
-					addLog(job.JobRunner.ID, fmt.Sprintf("run command: %s", command))
+					addLog(job.JobRunner.ID, fmt.Sprintf("%s# %s", dir, command))
 					output, err := cmd.Output()
 					if err != nil {
 						hlog.Errorf("run command error: %s", err)
