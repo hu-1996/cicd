@@ -96,7 +96,7 @@ export default function NewPipeline() {
         labelCol={{ span: 3 }}
         wrapperCol={{ span: 16 }}
         initialValues={{
-          tag_template: "${TIMESTAMP}",
+          tag_template: "${DATETIME}",
         }}
         style={{ maxWidth: 600, marginTop: "20px" }}
         onFinish={onFinish}
@@ -115,7 +115,7 @@ export default function NewPipeline() {
         <Form.Item<FieldType>
           label="Tag模板"
           name="tag_template"
-          extra="支持${COUNT}、${TIMESTAMP}"
+          extra="支持${COUNT}、${TIMESTAMP}、${DATETIME}，运行时可在环境变量中获取：VERSION"
           rules={[{ required: true, message: "请输入Tag模板" }]}
         >
           <Input placeholder="请输入Tag模板" />

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -99,18 +100,17 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 		if err := tx.Create(&job).Error; err != nil {
 			return err
 		}
-		ct := "${COUNT}"
-		if strings.Contains(pipeline.TagTemplate, ct) {
-			newTag := strings.ReplaceAll(pipeline.TagTemplate, ct, strconv.Itoa(int(job.ID)))
-			job.Tag = newTag
-		}
 
-		ts := "${TIMESTAMP}"
-		if strings.Contains(pipeline.TagTemplate, ts) {
-			timestamp := strconv.FormatInt(time.Now().Unix(), 10)
-			newTag := strings.ReplaceAll(pipeline.TagTemplate, ts, timestamp)
-			job.Tag = newTag
+		var newTag string
+		switch {
+		case strings.Contains(pipeline.TagTemplate, "${COUNT}"):
+			newTag = strings.ReplaceAll(pipeline.TagTemplate, "${COUNT}", strconv.Itoa(int(job.ID)))
+		case strings.Contains(pipeline.TagTemplate, "${TIMESTAMP}"):
+			newTag = strings.ReplaceAll(pipeline.TagTemplate, "${TIMESTAMP}", strconv.FormatInt(time.Now().Unix(), 10))
+		case strings.Contains(pipeline.TagTemplate, "${DATETIME}"):
+			newTag = strings.ReplaceAll(pipeline.TagTemplate, "${DATETIME}", time.Now().Format("20060102150405"))
 		}
+		job.Tag = cmp.Or(newTag, pipeline.TagTemplate)
 
 		if err := tx.Save(&job).Error; err != nil {
 			return err
