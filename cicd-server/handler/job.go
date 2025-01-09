@@ -182,6 +182,7 @@ func StartJobStep(ctx context.Context, c *app.RequestContext) {
 		jobRunner.Status = dal.Pending
 		jobRunner.Message = ""
 		jobRunner.AssignRunnerIds = []uint{}
+		jobRunner.EventStatus = map[dal.Status]int{}
 		jobRunner.Trigger = dal.TriggerManual
 		if err := tx.Create(&jobRunner).Error; err != nil {
 			return err
