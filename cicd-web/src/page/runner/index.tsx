@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Table, Switch, Tag, Button, message } from "antd";
+import { Table, Switch, Tag, Button, message, Popconfirm } from "antd";
 import type { TableProps } from "antd";
 import { fetchRequest } from "../../utils/fetch";
 
@@ -50,6 +50,14 @@ const IndexApplication: React.FC = () => {
     message.success("已设置为空闲");
   };
 
+  const deleteRunner = async (runnerId: string) => {
+    await fetchRequest("/api/delete_runner/" + runnerId, {
+      method: "DELETE",
+    });
+    loadData();
+    message.success("已删除");
+  };
+
   const columns: TableProps<DataType>["columns"] = [
     {
       title: "名称",
@@ -90,10 +98,7 @@ const IndexApplication: React.FC = () => {
       dataIndex: "enable",
       key: "enable",
       render: (obj, record) => (
-        <Switch
-          defaultChecked={obj}
-          onChange={() => onChange(record)}
-        />
+        <Switch defaultChecked={obj} onChange={() => onChange(record)} />
       ),
     },
     {
@@ -116,9 +121,22 @@ const IndexApplication: React.FC = () => {
       title: "操作",
       key: "action",
       render: (_, record) => (
-        <Button type="link" onClick={() => setRunnerBusy(record.id)}>
-          设置为空闲
-        </Button>
+        <>
+          <Button type="link" onClick={() => setRunnerBusy(record.id)}>
+            设置为空闲
+          </Button>
+          <Popconfirm
+            title="提示"
+            description={`是否删除${record.name}?`}
+            onConfirm={() => deleteRunner(record.id)}
+            okText="确定"
+            cancelText="取消"
+          >
+            <Button type="link" danger>
+              删除
+            </Button>
+          </Popconfirm>
+        </>
       ),
     },
   ];

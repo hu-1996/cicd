@@ -51,6 +51,9 @@ func RegisterRunner(ctx context.Context, c *app.RequestContext) {
 		if r.Endpoint != runner.Endpoint {
 			return errors.New("runner name already exists")
 		} else {
+			if err := tx.Model(&dal.Runner{}).Where("id = ?", r.ID).Update("status", dal.Online).Error; err != nil {
+				return err
+			}
 			if err := tx.Delete(&dal.RunnerLabel{}, "runner_id = ?", r.ID).Error; err != nil {
 				return err
 			}
@@ -146,6 +149,20 @@ func SetRunnerBusy(ctx context.Context, c *app.RequestContext) {
 	}
 	r.Busy = false
 	if err := dal.DB.Save(&r).Error; err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+		return
+	}
+	c.JSON(consts.StatusOK, utils.H{"data": "success"})
+}
+
+func DeleteRunner(ctx context.Context, c *app.RequestContext) {
+	var runner types.PathRunnerReq
+	if err := c.BindAndValidate(&runner); err != nil {
+		c.JSON(consts.StatusBadRequest, utils.H{"error": err.Error()})
+		return
+	}
+
+	if err := dal.DB.Delete(&dal.Runner{}, "id = ?", runner.ID).Error; err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 		return
 	}

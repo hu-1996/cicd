@@ -177,28 +177,28 @@ func StartJobStep(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
+	if jobRunner.Status != dal.Pending {
 		jobRunner.ID = 0
 		jobRunner.Status = dal.Pending
 		jobRunner.Message = ""
 		jobRunner.AssignRunnerIds = []uint{}
 		jobRunner.EventStatus = map[dal.Status]int{}
 		jobRunner.Trigger = dal.TriggerManual
-		if err := tx.Create(&jobRunner).Error; err != nil {
-			return err
+		if err := dal.DB.Create(&jobRunner).Error; err != nil {
+			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+			return
 		}
-		var git dal.Git
-		if pipeline.UseGit {
-			if err := tx.Last(&git, "pipeline_id = ?", j.PipelineID).Error; err != nil {
-				return err
-			}
-		}
-		jobexec.NewJobExec(j, jobRunner, git).AddJob()
-		return nil
-	}); err != nil {
-		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
-		return
 	}
+
+	var git dal.Git
+	if pipeline.UseGit {
+		if err := dal.DB.Last(&git, "pipeline_id = ?", j.PipelineID).Error; err != nil {
+			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+			return
+		}
+	}
+	jobexec.NewJobExec(j, jobRunner, git).AddJob()
+
 	c.JSON(consts.StatusOK, utils.H{"data": "success"})
 }
 

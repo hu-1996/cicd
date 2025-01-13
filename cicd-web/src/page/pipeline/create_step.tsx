@@ -93,15 +93,12 @@ export default function NewPipeline() {
     form.setFieldsValue(res);
   };
 
-
   const confirm = async () => {
     await fetchRequest("/api/delete_step/" + stepId, {
       method: "DELETE",
     });
-    message.success("删除成功")
-    navigate(
-      "/new_pipeline/step?id=" + searchParams.get("id")
-    );
+    message.success("删除成功");
+    navigate("/new_pipeline/step?id=" + searchParams.get("id"));
   };
 
   return (
@@ -185,25 +182,29 @@ export default function NewPipeline() {
             <Button type="primary" htmlType="submit">
               保存
             </Button>
-            <Button
-              color="default"
-              variant="solid"
-              onClick={() => {
-                form.resetFields();
-                navigate("/new_pipeline/step?id=" + searchParams.get("id"));
-              }}
-            >
-              创建Step
-            </Button>
-            {stepId && <Popconfirm
-              title="提示"
-              description={`是否删除?`}
-              onConfirm={() => confirm()}
-              okText="确定"
-              cancelText="取消"
-            >
-              <Button danger>删除</Button>
-            </Popconfirm>}
+            {stepId && (
+              <>
+                <Button
+                  color="default"
+                  variant="solid"
+                  onClick={() => {
+                    form.resetFields();
+                    navigate("/new_pipeline/step?id=" + searchParams.get("id"));
+                  }}
+                >
+                  创建Step
+                </Button>
+                <Popconfirm
+                  title="提示"
+                  description={`是否删除?`}
+                  onConfirm={() => confirm()}
+                  okText="确定"
+                  cancelText="取消"
+                >
+                  <Button danger>删除</Button>
+                </Popconfirm>
+              </>
+            )}
           </Space>
         </Form.Item>
       </Form>

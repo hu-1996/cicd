@@ -140,7 +140,7 @@ func matchRunners(labelMatch string, multipleRunnerExec bool) ([]dal.Runner, err
 	}
 
 	var runners []dal.Runner
-	db := dal.DB.Where("status = ? AND id IN (?)", dal.Online, runnerIds)
+	db := dal.DB.Where("status = ? AND enable = ? AND id IN (?)", dal.Online, true, runnerIds)
 	if !multipleRunnerExec {
 		db = db.Where("busy = ?", false)
 	}
@@ -148,7 +148,7 @@ func matchRunners(labelMatch string, multipleRunnerExec bool) ([]dal.Runner, err
 		return nil, err
 	}
 	if len(runners) == 0 {
-		return nil, fmt.Errorf("no runner match label: %s", labelMatch)
+		return nil, fmt.Errorf("no available runner: %s", labelMatch)
 	}
 
 	return runners, nil

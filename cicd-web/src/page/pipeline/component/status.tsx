@@ -52,7 +52,7 @@ export default function Status(props: any) {
             </div>
           </Tooltip>
           {index < steps.length - 1 && (steps[index + 1].last_status === 'pending' || steps[index + 1].last_status === '') ? (
-            <Button type="text" size="small" className="h-[16px]" onClick={() => startNextStep(steps[index + 1].last_runner_id)}>
+            <Button disabled={steps[index].last_status !== 'success'} type="text" size="small" className="h-[16px]" onClick={() => startNextStep(steps[index + 1].last_runner_id)}>
               <ForwardOutlined className="text-[20px]" />
             </Button>
           ) : (
