@@ -42,7 +42,7 @@ func (j *Job) Format() types.JobResp {
 	}
 	rs := lo.Values(jrs)
 	sort.Slice(rs, func(i, j int) bool {
-		return rs[i].StepID < rs[j].StepID
+		return rs[i].LastRunnerID < rs[j].LastRunnerID
 	})
 
 	return types.JobResp{

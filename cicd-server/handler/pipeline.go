@@ -115,7 +115,7 @@ func DeletePipeline(ctx context.Context, c *app.RequestContext) {
 			return err
 		}
 		if p.UseGit {
-			if err := tx.Delete(&dal.Git{PipelineID: p.ID}).Error; err != nil {
+			if err := tx.Delete(&dal.Git{}, "pipeline_id = ?", p.ID).Error; err != nil {
 				return err
 			}
 		}

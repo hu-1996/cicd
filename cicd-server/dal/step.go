@@ -17,6 +17,7 @@ type Step struct {
 	Trigger            Trigger
 	RunnerLabelMatch   string
 	MultipleRunnerExec bool
+	Sort               int
 }
 
 type ListString []string

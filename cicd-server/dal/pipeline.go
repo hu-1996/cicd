@@ -78,7 +78,7 @@ func (p *Pipeline) Format() types.PipelineResp {
 
 	var stepsResp []types.StepResp
 	var steps []Step
-	if err := DB.Order("id asc").Find(&steps, "pipeline_id = ?", p.ID).Error; err == nil {
+	if err := DB.Order("sort ASC, id ASC").Find(&steps, "pipeline_id = ?", p.ID).Error; err == nil {
 		for _, step := range steps {
 			stepsResp = append(stepsResp, step.Format())
 		}

@@ -3,6 +3,7 @@ module cicd-server
 go 1.23.4
 
 require (
+	aidanwoods.dev/go-paseto v1.3.0
 	github.com/cloudwego/hertz v0.9.4
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-git/go-git/v5 v5.13.1
@@ -12,7 +13,6 @@ require (
 )
 
 require (
-	aidanwoods.dev/go-paseto v1.3.0 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v1.1.3 // indirect

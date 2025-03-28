@@ -8,11 +8,12 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"gorm.io/gorm"
 )
 
 func ListStep(ctx context.Context, c *app.RequestContext) {
 	var steps []dal.Step
-	if err := dal.DB.Find(&steps).Error; err != nil {
+	if err := dal.DB.Order("sort ASC, id ASC").Find(&steps).Error; err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 	}
 	c.JSON(consts.StatusOK, utils.H{"data": steps})
@@ -122,4 +123,26 @@ func UpdateStep(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	c.JSON(consts.StatusOK, s.Format())
+}
+
+func SortStep(ctx context.Context, c *app.RequestContext) {
+	var step types.SortStepReq
+	if err := c.BindAndValidate(&step); err != nil {
+		c.JSON(consts.StatusBadRequest, utils.H{"error": err.Error()})
+		return
+	}
+
+	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
+		for i, id := range step.StepIDs {
+			if err := tx.Model(&dal.Step{}).Where("id = ?", id).Update("sort", i).Error; err != nil {
+				c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+		return
+	}
+	c.JSON(consts.StatusOK, utils.H{"data": "success"})
 }

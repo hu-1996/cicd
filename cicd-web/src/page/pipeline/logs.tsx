@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Descriptions, Select, Divider, Alert, Space, Button, message as msg } from "antd";
+import {
+  Descriptions,
+  Select,
+  Divider,
+  Alert,
+  Space,
+  Button,
+  message as msg,
+} from "antd";
 import type { DescriptionsProps } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import { fetchRequest } from "../../utils/fetch";
@@ -47,7 +55,7 @@ export default function Logs() {
         label: "执行机器",
         children: res?.job_runner?.assign_runners
           ?.map((r: any) => r.name)
-          .join(", "),
+          .join(", ") || '-',
       },
       {
         key: "3",
@@ -72,14 +80,16 @@ export default function Logs() {
       method: "GET",
     });
     setLog(res);
-    const rs = job?.job_runner?.filter((r: any) => r.id === id);
-    if (rs.length > 0) {
-      const message = rs[0].message;
-      if (message) {
-        setMessage(message);
+    if (job?.job_runner?.length > 0) {
+      const rs = job?.job_runner?.filter((r: any) => r.id === id);
+      if (rs.length > 0) {
+        const message = rs[0].message;
+        if (message) {
+          setMessage(message);
+        }
+      } else {
+        setMessage("");
       }
-    } else {
-      setMessage("");
     }
   };
 
@@ -88,7 +98,7 @@ export default function Logs() {
       method: "POST",
     });
     msg.success("开始执行");
-  }
+  };
 
   return (
     <div>

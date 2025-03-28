@@ -34,3 +34,8 @@ type StepResp struct {
 	LastStatus         string   `json:"last_status"`
 	MultipleRunnerExec bool     `json:"multiple_runner_exec"`
 }
+
+type SortStepReq struct {
+	PipelineID uint   `path:"pipeline_id" vd:"$>0"`
+	StepIDs    []uint `json:"step_ids"`
+}

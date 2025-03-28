@@ -72,7 +72,7 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 	}
 
 	var steps []dal.Step
-	if err := dal.DB.Find(&steps, "pipeline_id = ?", job.PipelineID).Error; err != nil {
+	if err := dal.DB.Order("sort ASC, id ASC").Find(&steps, "pipeline_id = ?", job.PipelineID).Error; err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 		return
 	}
@@ -247,9 +247,9 @@ func JobRunnerDetail(ctx context.Context, c *app.RequestContext) {
 			rs := types.JobRunner{
 				LastRunnerID: jobRunner.ID,
 				LastStatus:   string(jobRunner.Status),
-				StartTime:    lo.If(jobRunner.StartTime.IsZero(), "-").Else(jobRunner.StartTime.Format("2006-01-02 15:04:05")),
-				EndTime:      lo.If(jobRunner.StartTime.IsZero(), "-").Else(jobRunner.EndTime.Format("2006-01-02 15:04:05")),
-				Cost:         jobRunner.EndTime.Sub(jobRunner.StartTime).String(),
+				StartTime:    lo.Ternary(jobRunner.StartTime.IsZero(), "-", jobRunner.StartTime.Format("2006-01-02 15:04:05")),
+				EndTime:      lo.Ternary(jobRunner.EndTime.IsZero(), "-", jobRunner.EndTime.Format("2006-01-02 15:04:05")),
+				Cost:         lo.Ternary(jobRunner.EndTime.IsZero(), "-", jobRunner.EndTime.Sub(jobRunner.StartTime).String()),
 				Message:      jobRunner.Message,
 			}
 			if s, ok := stepBy[jobRunner.StepID]; ok {

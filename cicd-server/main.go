@@ -57,6 +57,7 @@ func main() {
 	h.POST("/api/create_step", handler.CreateStep)
 	h.PUT("/api/update_step/:id", handler.UpdateStep)
 	h.DELETE("/api/delete_step/:id", handler.DeleteStep)
+	h.POST("/api/sort_step/:pipeline_id", handler.SortStep)
 
 	h.GET("/api/list_pipeline", handler.ListPipeline)
 	h.GET("/api/pipeline/:id", handler.PipelineDetail)
