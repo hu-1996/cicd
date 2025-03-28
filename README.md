@@ -30,3 +30,9 @@ npm run dev
 
 ./build-image.sh linux amd64 cicd-server
 ```
+
+## 打包
+
+```bash
+GOOS=linux GOARCH=amd64 go build -a -o cicd-server cicd-server/main.go
+```
