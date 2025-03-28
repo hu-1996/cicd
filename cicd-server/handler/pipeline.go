@@ -20,7 +20,7 @@ func ListPipeline(ctx context.Context, c *app.RequestContext) {
 
 	var resp []types.PipelineResp
 	for _, v := range pipelines {
-		resp = append(resp, v.Format())
+		resp = append(resp, v.ListFormat())
 	}
 
 	c.JSON(consts.StatusOK, resp)

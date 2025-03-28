@@ -90,3 +90,69 @@ func (p *Pipeline) Format() types.PipelineResp {
 
 	return pipeline
 }
+
+func (p *Pipeline) ListFormat() types.PipelineResp {
+	var evns types.Envs
+	for _, v := range p.Envs {
+		evns = append(evns, types.Env{
+			Key: v.Key,
+			Val: v.Val,
+		})
+	}
+
+	pipeline := types.PipelineResp{
+		ID:           p.ID,
+		Name:         p.Name,
+		TagTemplate:  p.TagTemplate,
+		Envs:         evns,
+		LastUpdateAt: p.UpdatedAt.Format("2006-01-02 15:04:05"),
+		LastTag:      p.TagTemplate,
+		UseGit:       p.UseGit,
+	}
+
+	var git Git
+	if err := DB.Last(&git, "pipeline_id = ?", p.ID).Error; err == nil {
+		pipeline.UseGit = true
+		pipeline.Repository = git.Repository
+		pipeline.Branch = git.Branch
+		pipeline.Username = git.Username
+		pipeline.Password = git.Password
+	}
+
+	var job Job
+	if err := DB.Last(&job, "pipeline_id = ?", p.ID).Error; err == nil {
+		pipeline.LastTag = job.Tag
+	}
+
+	var sortStepIds []uint
+	var jobRunners []JobRunner
+	if err := DB.Order("id asc").Find(&jobRunners, "job_id = ?", job.ID).Error; err == nil {
+		for _, jobRunner := range jobRunners {
+			sortStepIds = append(sortStepIds, jobRunner.StepID)
+		}
+	}
+
+	var stepsResp []types.StepResp
+	var steps []Step
+	if err := DB.Order("sort ASC, id ASC").Find(&steps, "pipeline_id = ?", p.ID).Error; err == nil {
+		if len(sortStepIds) > 0 {
+			for _, id := range sortStepIds {
+				for _, step := range steps {
+					if step.ID == id {
+						stepsResp = append(stepsResp, step.Format())
+					}
+				}
+			}
+		} else {
+			for _, step := range steps {
+				stepsResp = append(stepsResp, step.Format())
+			}
+		}
+	} else {
+		hlog.Errorf("get steps error: %s", err)
+	}
+	pipeline.Current = len(steps) - 1
+	pipeline.Steps = stepsResp
+
+	return pipeline
+}
