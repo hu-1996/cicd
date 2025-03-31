@@ -7,6 +7,7 @@ import (
 	"cicd-server/types"
 
 	"github.com/cloudwego/hertz/pkg/common/hlog"
+	"github.com/samber/lo"
 	"gorm.io/gorm"
 )
 
@@ -131,6 +132,7 @@ func (p *Pipeline) ListFormat() types.PipelineResp {
 			sortStepIds = append(sortStepIds, jobRunner.StepID)
 		}
 	}
+	sortStepIds = lo.Uniq(sortStepIds)
 
 	var stepsResp []types.StepResp
 	var steps []Step

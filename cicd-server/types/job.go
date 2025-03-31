@@ -27,6 +27,7 @@ type JobRunner struct {
 	LastRunnerID  uint         `json:"last_runner_id"`
 	StepID        uint         `json:"step_id"`
 	StepName      string       `json:"name"`
+	StepSort      int          `json:"step_sort"`
 	LastStatus    string       `json:"last_status"`
 	StartTime     string       `json:"start_time"`
 	EndTime       string       `json:"end_time"`

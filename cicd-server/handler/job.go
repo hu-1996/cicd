@@ -121,6 +121,7 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 			runner := dal.JobRunner{
 				JobID:    job.ID,
 				StepID:   step.ID,
+				StepSort: step.Sort,
 				Status:   dal.Pending,
 				Trigger:  step.Trigger,
 				Commands: step.Commands,

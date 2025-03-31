@@ -54,6 +54,7 @@ func (s *Step) Format() types.StepResp {
 		Trigger:            string(s.Trigger),
 		RunnerLabelMatch:   s.RunnerLabelMatch,
 		MultipleRunnerExec: s.MultipleRunnerExec,
+		Sort:               s.Sort,
 	}
 
 	var job Job

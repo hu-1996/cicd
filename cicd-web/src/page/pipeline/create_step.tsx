@@ -57,15 +57,12 @@ export default function NewPipeline() {
     values.pipeline_id = Number(pipelineId);
     values.trigger = values.trigger_policy ? "auto" : "manual";
     if (searchParams.get("step_id")) {
-      const res = await fetchRequest("/api/update_step/" + stepId, {
+      await fetchRequest("/api/update_step/" + stepId, {
         method: "PUT",
         body: JSON.stringify(values),
       });
       message.success("更新成功");
-      form.resetFields();
-      navigate(
-        "/new_pipeline/step?id=" + searchParams.get("id") + "&step_id=" + res.id
-      );
+      location.reload();
       return;
     }
     const res = await fetchRequest("/api/create_step", {

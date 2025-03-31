@@ -33,6 +33,7 @@ type StepResp struct {
 	RunnerLabelMatch   string   `json:"runner_label_match"`
 	LastStatus         string   `json:"last_status"`
 	MultipleRunnerExec bool     `json:"multiple_runner_exec"`
+	Sort               int      `json:"sort"`
 }
 
 type SortStepReq struct {

@@ -12,6 +12,7 @@ type JobRunner struct {
 	gorm.Model
 	JobID           uint
 	StepID          uint
+	StepSort        int
 	Commands        ListString
 	Status          Status
 	EventStatus     EventStatus

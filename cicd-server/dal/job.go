@@ -31,6 +31,7 @@ func (j *Job) Format() types.JobResp {
 			rs := types.JobRunner{
 				LastRunnerID: jobRunner.ID,
 				StepID:       jobRunner.StepID,
+				StepSort:     jobRunner.StepSort,
 				LastStatus:   string(jobRunner.Status),
 			}
 			var step Step
@@ -42,7 +43,10 @@ func (j *Job) Format() types.JobResp {
 	}
 	rs := lo.Values(jrs)
 	sort.Slice(rs, func(i, j int) bool {
-		return rs[i].LastRunnerID < rs[j].LastRunnerID
+		return rs[i].StepID < rs[j].StepID
+	})
+	sort.Slice(rs, func(i, j int) bool {
+		return rs[i].StepSort < rs[j].StepSort
 	})
 
 	return types.JobResp{
