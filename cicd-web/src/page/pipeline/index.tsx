@@ -17,6 +17,13 @@ export default function Pipeline() {
   const [pipelines, setPipelines] = useState([]);
   useEffect(() => {
     loadPipeline();
+    const timer = setInterval(() => {
+      loadPipeline();
+    }, 5000);
+
+    return () => {
+      clearInterval(timer); // 清理定时器避免内存泄漏
+    };
   }, []);
 
   const loadPipeline = async () => {
