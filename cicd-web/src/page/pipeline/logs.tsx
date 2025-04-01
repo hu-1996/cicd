@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Descriptions,
   Select,
@@ -14,6 +14,7 @@ import { ReloadOutlined } from "@ant-design/icons";
 import { fetchRequest } from "../../utils/fetch";
 
 export default function Logs() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const id = searchParams.get("id");
 
@@ -30,6 +31,13 @@ export default function Logs() {
   useEffect(() => {
     if (job?.job_runner?.last_runner_id) {
       loadLogs(job?.job_runner?.last_runner_id);
+      const timer = setInterval(() => {
+        loadLogs(job?.job_runner?.last_runner_id);
+      }, 5000);
+  
+      return () => {
+        clearInterval(timer); // 清理定时器避免内存泄漏
+      };
     }
   }, [job?.job_runner?.last_runner_id]);
 
@@ -111,7 +119,7 @@ export default function Logs() {
             className="w-[200px]"
             defaultValue={job?.job_runner?.last_runner_id}
             onChange={(val) => {
-              loadLogs(val);
+              navigate("/logs?id=" + val);
             }}
           />
         )}
@@ -125,8 +133,13 @@ export default function Logs() {
       </Space>
       {message && <Alert message={message} type="error" className="mt-4" />}
       <div
-        className="overflow-y-scroll mt-4 bg-black text-white p-4 rounded-md"
+        className="overflow-y-scroll mt-4 bg-black text-white p-4 rounded-md" 
         style={{ height: "calc(100vh - 300px)", minHeight: "300px" }}
+        ref={(el) => {
+          if (el) {
+            el.scrollTop = el.scrollHeight;
+          }
+        }}
       >
         <pre style={{ whiteSpace: "pre-wrap" }}>
           {(log || "").split("\n").map((line, i) => (

@@ -1,6 +1,7 @@
 package jobexec
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 
 	"cicd-runner/git"
 	"cicd-runner/types"
@@ -118,21 +120,72 @@ func Run(n, su string) {
 
 			if succeed {
 				for _, command := range job.JobRunner.Commands {
+					if !succeed {
+						continue
+					}
 					cmd := exec.Command("sh", "-c", command)
 					cmd.Dir = dir
 					hlog.Infof("run command: %s", command)
 
 					addLog(job.JobRunner.ID, fmt.Sprintf("%s# %s", dir, command))
-					output, err := cmd.Output()
+					// 创建管道获取标准输出
+					stdout, err := cmd.StdoutPipe()
 					if err != nil {
-						hlog.Errorf("run command error: %s", err)
-						addEvent(job.JobRunner.ID, false, err.Error())
-						addLog(job.JobRunner.ID, err.Error())
-						succeed = false
-						continue
+						hlog.Errorf("cmd stdout pipe error: %s", err)
 					}
-					addLog(job.JobRunner.ID, fmt.Sprintf("output:\n %s", string(output)))
-					hlog.Infof("run command success: %s", string(output))
+
+					// 创建管道获取标准错误
+					stderr, err := cmd.StderrPipe()
+					if err != nil {
+						hlog.Errorf("cmd stderr pipe error: %s", err)
+					}
+
+					if err := cmd.Start(); err != nil {
+						hlog.Errorf("cmd start error: %s", err)
+					}
+					var wg sync.WaitGroup
+					wg.Add(2)
+					go func() {
+						defer wg.Done()
+						scanner := bufio.NewScanner(stdout)
+						for scanner.Scan() {
+							addLog(job.JobRunner.ID, fmt.Sprintf("[stdout] %s", scanner.Text()))
+						}
+					}()
+					go func() {
+						defer wg.Done()
+						scanner := bufio.NewScanner(stderr)
+						for scanner.Scan() {
+							addLog(job.JobRunner.ID, fmt.Sprintf("[stderr] %s", scanner.Text()))
+						}
+					}()
+
+					err = cmd.Wait()
+					wg.Wait()
+					if err != nil {
+						if exitErr, ok := err.(*exec.ExitError); ok {
+							hlog.Errorf("exit code: %d", exitErr.ExitCode())
+							addEvent(job.JobRunner.ID, false, fmt.Sprintf("exit code: %d", exitErr.ExitCode()))
+							addLog(job.JobRunner.ID, fmt.Sprintf("exit code: %d", exitErr.ExitCode()))
+							succeed = false
+						} else {
+							hlog.Errorf("run command error: %s", err)
+							addEvent(job.JobRunner.ID, false, err.Error())
+							addLog(job.JobRunner.ID, err.Error())
+							succeed = false
+						}
+					}
+					// output, err := cmd.Output()
+					// if err != nil {
+					// 	hlog.Errorf("run command error: %s", err)
+					// 	addEvent(job.JobRunner.ID, false, err.Error())
+					// 	addLog(job.JobRunner.ID, err.Error())
+					// 	succeed = false
+					// 	continue
+					// }
+					// addLog(job.JobRunner.ID, fmt.Sprintf("output:\n %s", string(output)))
+					// hlog.Infof("run command success: %s", string(output))
+					hlog.Info("----------------------------------------")
 				}
 			}
 
