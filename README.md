@@ -18,10 +18,6 @@ cd cicd-web
 npm run dev
 ```
 
-## 前端部署
-
-代码放到 cicd-web/web下，然后启动cicd-server，dist/assets放到cicd-server/web/assets下，其余放到cicd-server/web/views下
-
 ## 打镜像(暂不可用)
 
 ```bash
@@ -45,7 +41,7 @@ cd cicd-runner && go mod tidy && GOOS=linux GOARCH=amd64 go build -a -o cicd-run
 cd cicd-web && npm run build
 ```
 
-## 运行
+## 部署
 
 ```bash
 # cicd-web
