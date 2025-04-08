@@ -34,6 +34,7 @@ npm run dev
 ## 打包
 
 ```bash
+# !!!如果是arm64机器把GOARCH换成arm64即可
 # cicd-server
 cd cicd-server && go mod tidy && GOOS=linux GOARCH=amd64 go build -a -o cicd-server main.go
 
@@ -47,14 +48,14 @@ cd cicd-web && npm run build
 ## 运行
 
 ```bash
-# cicd-server
-执行cicd-server下start.sh
-
-# cicd-runner
-执行cicd-runner下start.sh
-
 # cicd-web
 build完成后出现dist目录
 index.html、vite.svg -> cicd-server二进制文件同级目录下的web/views下
 assets目录复制到与cicd-server二进制文件同级目录下的web/assets
+
+# cicd-server
+执行cicd-server下start.sh，需要先把cicd-web项目复制完成再启动
+
+# cicd-runner
+执行cicd-runner下start.sh
 ```
