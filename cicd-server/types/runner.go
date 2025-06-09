@@ -11,7 +11,7 @@ type RunnerResp struct {
 	Name         string   `json:"name"`
 	Status       string   `json:"status"`
 	PipelineID   uint     `json:"pipeline_id"`
-	PipelineName string   `json:"pipeline"`
+	PipelineName string   `json:"pipeline_name"`
 	Enable       bool     `json:"enable"`
 	Labels       []string `json:"labels"`
 	CreatedAt    string   `json:"created_at"`

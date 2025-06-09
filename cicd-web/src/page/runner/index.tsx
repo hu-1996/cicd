@@ -111,6 +111,12 @@ const IndexApplication: React.FC = () => {
       ),
     },
     {
+      title: "运行的pipeline",
+      dataIndex: "pipeline_name",
+      key: "pipeline_name",
+      render: (text) => <span>{text || '-'}</span>,
+    },
+    {
       title: "创建时间",
       dataIndex: "created_at",
       key: "created_at",
