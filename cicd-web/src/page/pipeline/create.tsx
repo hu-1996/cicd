@@ -50,9 +50,10 @@ export default function NewPipeline() {
     if (selectedKeys[0] === "new_pipeline") {
       navigate("/new_pipeline/pipeline");
       return;
-    } else if (selectedKeys[0] === pipelineName) {
+    } else if (selectedKeys[0] === pipelineName || selectedKeys.length === 0) {
       navigate("/new_pipeline/pipeline?id=" + searchParams.get("id"));
     } else {
+      console.log("selectedKeys[0]", selectedKeys);
       navigate(
         "/new_pipeline/step?id=" +
           searchParams.get("id") +

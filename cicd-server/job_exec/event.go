@@ -7,6 +7,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
 )
 
 var eventChan = make(chan *types.Event, 10000)
@@ -95,7 +96,7 @@ func StartNextStep(jobRunnerID uint) {
 			return
 		} else if jobRunner.Status == dal.Success {
 			var git dal.Git
-			if err := dal.DB.Last(&git, "pipeline_id = ?", job.PipelineID).Error; err != nil {
+			if err := dal.DB.Last(&git, "pipeline_id = ?", job.PipelineID).Error; err != nil && err != gorm.ErrRecordNotFound {
 				return
 			}
 			NewJobExec(job, nextRunner, git).AddJob()

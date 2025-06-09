@@ -60,6 +60,7 @@ func main() {
 	h.POST("/api/sort_step/:pipeline_id", handler.SortStep)
 
 	h.GET("/api/list_pipeline", handler.ListPipeline)
+	h.POST("/api/sort_pipeline", handler.SortPipeline)
 	h.GET("/api/pipeline/:id", handler.PipelineDetail)
 	h.POST("/api/create_pipeline", handler.CreatePipeline)
 	h.PUT("/api/update_pipeline/:id", handler.UpdatePipeline)

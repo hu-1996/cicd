@@ -14,9 +14,11 @@ import (
 type Pipeline struct {
 	gorm.Model
 	Name        string
+	GroupName   string
 	TagTemplate string
 	Envs        Envs `gorm:"type:json"`
 	UseGit      bool `gorm:"default:0"`
+	Sort        int  `gorm:"default:0"`
 }
 
 type Envs []Env
@@ -56,11 +58,13 @@ func (p *Pipeline) Format() types.PipelineResp {
 	pipeline := types.PipelineResp{
 		ID:           p.ID,
 		Name:         p.Name,
+		GroupName:    p.GroupName,
 		TagTemplate:  p.TagTemplate,
 		Envs:         evns,
 		LastUpdateAt: p.UpdatedAt.Format("2006-01-02 15:04:05"),
 		LastTag:      p.TagTemplate,
 		UseGit:       p.UseGit,
+		Sort:         p.Sort,
 	}
 
 	var git Git
@@ -104,11 +108,13 @@ func (p *Pipeline) ListFormat() types.PipelineResp {
 	pipeline := types.PipelineResp{
 		ID:           p.ID,
 		Name:         p.Name,
+		GroupName:    p.GroupName,
 		TagTemplate:  p.TagTemplate,
 		Envs:         evns,
 		LastUpdateAt: p.UpdatedAt.Format("2006-01-02 15:04:05"),
 		LastTag:      p.TagTemplate,
 		UseGit:       p.UseGit,
+		Sort:         p.Sort,
 	}
 
 	var git Git

@@ -24,6 +24,7 @@ export default function NewPipeline() {
 
   type FieldType = {
     name: string;
+    group_name: string;
     tag_template: string;
     envs: { key: string; val: string }[];
     use_git: boolean;
@@ -110,6 +111,14 @@ export default function NewPipeline() {
           rules={[{ required: true, message: "请输入名称" }]}
         >
           <Input placeholder="请输入名称" />
+        </Form.Item>
+
+        <Form.Item<FieldType>
+          label="分组"
+          name="group_name"
+          rules={[{ required: true, message: "请输入分组" }]}
+        >
+          <Input placeholder="请输入分组" />
         </Form.Item>
 
         <Form.Item<FieldType>

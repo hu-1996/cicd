@@ -14,7 +14,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (location.pathname === "/") {
-      redirectPipeline()
+      redirectPipeline();
       return;
     } else if (location.pathname === "/login") {
       return;
@@ -22,14 +22,13 @@ const App: React.FC = () => {
     loadUser();
   }, []);
 
-
   const loadUser = async () => {
-    const res = await fetchRequest('/api/userinfo', {
-      method: 'GET',
+    const res = await fetchRequest("/api/userinfo", {
+      method: "GET",
     });
     setUser(res);
     localStorage.setItem("userInfo", JSON.stringify(res));
-  }
+  };
 
   const redirectPipeline = () => {
     navigate("/pipeline");
@@ -38,17 +37,13 @@ const App: React.FC = () => {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("userInfo");
-    navigate('/login');
-  }
+    navigate("/login");
+  };
 
   return (
     <Layout>
       <Header
         style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 1,
-          width: "100%",
           display: "flex",
           alignItems: "center",
         }}
@@ -56,7 +51,7 @@ const App: React.FC = () => {
         <Menu
           theme="dark"
           mode="horizontal"
-          defaultSelectedKeys={[window.location.pathname.split('/')[1]]}
+          defaultSelectedKeys={[window.location.pathname.split("/")[1]]}
           onClick={handleMenuClick}
           items={[
             {
@@ -71,24 +66,37 @@ const App: React.FC = () => {
           style={{ flex: 1, minWidth: 0 }}
         />
         <Space>
-            <Dropdown menu={{ items: [
-              {
-                key: '1',
-                label: (
-                  <a onClick={handleLogout}>
-                    退出登录
-                  </a>
-                ),
-              },
-            ] }}>
-              <Avatar src={user?.avatar} style={{ backgroundColor: "#743aed", position: "relative"}}>
-                {user?.username.slice(0, 1)}
-              </Avatar>
-            </Dropdown>
-          </Space>
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: "1",
+                  label: <a onClick={handleLogout}>退出登录</a>,
+                },
+              ],
+            }}
+          >
+            <Avatar
+              src={user?.avatar}
+              style={{ backgroundColor: "#743aed", position: "relative" }}
+            >
+              {user?.username.slice(0, 1)}
+            </Avatar>
+          </Dropdown>
+        </Space>
       </Header>
-      <Content style={{ padding: "20px 20px", height: "calc(100vh - 64px)" }}>
-        <Outlet />
+      <Content>
+        <div
+          style={{
+            background: "#f8fbf8",
+            padding: "10px 20px",
+            borderRadius: 8,
+            height: "calc(100vh - 64px)",
+            overflow: "auto",
+          }}
+        >
+          <Outlet />
+        </div>
       </Content>
     </Layout>
   );

@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import Pipeline from "./page/pipeline";
+import Setting from "./page/pipeline/setting.tsx";
 import NewPipeline from "./page/pipeline/create.tsx";
 import CreatePipeline from "./page/pipeline/create_pipeline.tsx";
 import CreateStep from "./page/pipeline/create_step.tsx";
@@ -20,6 +21,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Layout />}>
           <Route path="/pipeline" element={<Pipeline />} />
+          <Route path="/setting" element={<Setting />} />
           <Route path="/new_pipeline" element={<NewPipeline />}>
             <Route path="pipeline" element={<CreatePipeline />} />
             <Route path="step" element={<CreateStep />} />

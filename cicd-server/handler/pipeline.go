@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"errors"
+	"sort"
 
 	"cicd-server/dal"
 	"cicd-server/types"
@@ -9,19 +11,33 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/samber/lo"
 	"gorm.io/gorm"
 )
 
 func ListPipeline(ctx context.Context, c *app.RequestContext) {
 	var pipelines []dal.Pipeline
-	if err := dal.DB.Find(&pipelines).Error; err != nil {
+	if err := dal.DB.Order("sort ASC, id ASC").Find(&pipelines).Error; err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 	}
 
-	var resp []types.PipelineResp
-	for _, v := range pipelines {
-		resp = append(resp, v.ListFormat())
+	groupBy := lo.GroupBy(pipelines, func(item dal.Pipeline) string {
+		return item.GroupName
+	})
+
+	var resp []types.PipelineGroupResp
+	for k, v := range groupBy {
+		resp = append(resp, types.PipelineGroupResp{
+			GroupName: k,
+			Pipelines: lo.Map(v, func(item dal.Pipeline, _ int) types.PipelineResp {
+				return item.ListFormat()
+			}),
+		})
 	}
+
+	sort.Slice(resp, func(i, j int) bool {
+		return resp[i].GroupName < resp[j].GroupName
+	})
 
 	c.JSON(consts.StatusOK, resp)
 }
@@ -61,6 +77,7 @@ func CreatePipeline(ctx context.Context, c *app.RequestContext) {
 
 	p := dal.Pipeline{
 		Name:        pipeline.Name,
+		GroupName:   pipeline.GroupName,
 		TagTemplate: pipeline.TagTemplate,
 		UseGit:      pipeline.UseGit,
 	}
@@ -152,6 +169,19 @@ func UpdatePipeline(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
+	var maxSortPipeline dal.Pipeline
+	var maxSort int
+	if err := dal.DB.Model(&dal.Pipeline{}).Where("group_name = ?", p.GroupName).Order("sort DESC").Last(&maxSortPipeline).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			maxSort = 0
+		} else {
+			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+			return
+		}
+	} else {
+		maxSort = maxSortPipeline.Sort + 1
+	}
+
 	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
 		if p.UseGit {
 			if err := tx.Delete(&dal.Git{}, "pipeline_id = ?", p.ID).Error; err != nil {
@@ -161,6 +191,8 @@ func UpdatePipeline(ctx context.Context, c *app.RequestContext) {
 		p.Name = pipeline.Name
 		p.TagTemplate = pipeline.TagTemplate
 		p.UseGit = pipeline.UseGit
+		p.GroupName = pipeline.GroupName
+		p.Sort = maxSort
 		var envs []dal.Env
 		for _, v := range pipeline.Envs {
 			envs = append(envs, dal.Env{
@@ -191,4 +223,26 @@ func UpdatePipeline(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	c.JSON(consts.StatusOK, p.Format())
+}
+
+func SortPipeline(ctx context.Context, c *app.RequestContext) {
+	var pipeline types.SortPipelineReq
+	if err := c.BindAndValidate(&pipeline); err != nil {
+		c.JSON(consts.StatusBadRequest, utils.H{"error": err.Error()})
+		return
+	}
+
+	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
+		for i, id := range pipeline.PipelineIDs {
+			if err := tx.Model(&dal.Pipeline{}).Where("id = ?", id).Update("sort", i).Error; err != nil {
+				c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+		return
+	}
+	c.JSON(consts.StatusOK, utils.H{"data": "success"})
 }
