@@ -6,11 +6,10 @@ import { fetchRequest } from "../../utils/fetch";
 interface DataType {
   id: string;
   name: string;
-  intro: string;
-  logo_url: string;
-  category: string;
-  enabled: boolean;
-  version_num: number;
+  labels: string[];
+  status: string;
+  enable: boolean;
+  pipeline_id: number;
   created_at: string;
 }
 
@@ -103,11 +102,11 @@ const IndexApplication: React.FC = () => {
     },
     {
       title: "是否空闲",
-      dataIndex: "busy",
-      key: "busy",
+      dataIndex: "pipeline_id",
+      key: "pipeline_id",
       render: (obj) => (
         <Tag bordered={false} color={obj ? "gold" : "processing"}>
-          {obj ? "忙碌" : "空闲"}
+          {obj > 0 ? "忙碌" : "空闲"}
         </Tag>
       ),
     },
@@ -122,9 +121,11 @@ const IndexApplication: React.FC = () => {
       key: "action",
       render: (_, record) => (
         <>
-          <Button type="link" onClick={() => setRunnerBusy(record.id)}>
-            设置为空闲
-          </Button>
+          {record.pipeline_id > 0 && (
+            <Button type="link" onClick={() => setRunnerBusy(record.id)}>
+              设置为空闲
+            </Button>
+          )}
           <Popconfirm
             title="提示"
             description={`是否删除${record.name}?`}

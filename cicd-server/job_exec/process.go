@@ -18,7 +18,6 @@ import (
 )
 
 var jobChan = make(chan *JobExec, 10000)
-var peroid = time.Second * 10
 
 type JobExec struct {
 	Job       dal.Job
@@ -35,97 +34,82 @@ func NewJobExec(job dal.Job, jobRunner dal.JobRunner, git dal.Git) *JobExec {
 }
 
 func (j *JobExec) AddJob() {
-	jobChan <- j
+	if j.JobRunner.Status == dal.Queueing {
+		jobChan <- j
+	}
 }
 
 func Run() {
-	for {
-		select {
-		case job := <-jobChan:
-			for {
-				hlog.Infof("start job: %+v", job)
-				var j dal.Job
-				if err := dal.DB.Last(&j, "id = ?", job.Job.ID).Error; err != nil {
-					if errors.Is(err, gorm.ErrRecordNotFound) {
-						hlog.Infof("job[%d] not found", job.Job.ID)
-						break
-					}
-					hlog.Errorf("get job[%d] error: %s", job.Job.ID, err)
-					dal.DB.Model(&dal.Job{}).Where("id = ?", job.Job.ID).Update("status", dal.Failed)
-					break
-				}
+	for job := range jobChan {
+		hlog.Infof("start job: %+v", job)
 
-				var s dal.Step
-				if err := dal.DB.Last(&s, "id = ?", job.JobRunner.StepID).Error; err != nil {
-					if errors.Is(err, gorm.ErrRecordNotFound) {
-						hlog.Infof("step[%d] not found", job.JobRunner.StepID)
-						break
-					}
-					hlog.Errorf("get step[%d] error: %s", job.JobRunner.StepID, err)
-					updateJobRunner(job.JobRunner.ID, dal.Failed, err.Error(), nil, nil, nil)
-					break
-				}
-				updateJobRunner(job.JobRunner.ID, dal.Assigning, "", nil, nil, nil)
+		var s dal.Step
+		if err := dal.DB.Last(&s, "id = ?", job.JobRunner.StepID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				hlog.Infof("step[%d] not found", job.JobRunner.StepID)
+				continue
+			}
+			hlog.Errorf("get step[%d] error: %s", job.JobRunner.StepID, err)
+			updateJobRunner(job.JobRunner.ID, dal.Failed, err.Error(), nil, nil, nil)
+			continue
+		}
 
-				runners, err := matchRunners(s.RunnerLabelMatch, s.MultipleRunnerExec)
-				if err != nil {
-					hlog.Errorf("detect idle runners error: %s", err)
-					updateJobRunner(job.JobRunner.ID, dal.Failed, err.Error(), nil, nil, nil)
-					break
-				}
-				start := time.Now()
-				if len(runners) > 0 {
-					if s.MultipleRunnerExec {
-						var runnerIds dal.AssignRunnerIds
-						var status dal.Status
-						var message string
-						for _, runner := range runners {
-							runnerIds = append(runnerIds, runner.ID)
-							// 发送到runner
-							if err := sendJob(runner, *job); err != nil {
-								hlog.Errorf("send job error: %s", err)
-								if status == "" {
-									status = dal.Failed
-								} else if status == dal.Success {
-									status = dal.PartialRunning
-								}
-								message += fmt.Sprintf("send job to runner[%s] error: %s; ", runner.Name, err)
-								continue
-							}
-
-							// if step success
-							if status == dal.Failed || status == dal.PartialRunning {
-								status = dal.PartialRunning
-							} else {
-								status = dal.Running
-							}
+		runners, err := matchRunners(s.RunnerLabelMatch)
+		if err != nil {
+			hlog.Errorf("detect idle runners error: %s", err)
+			updateJobRunner(job.JobRunner.ID, dal.Failed, err.Error(), nil, nil, nil)
+			continue
+		}
+		start := time.Now()
+		if len(runners) > 0 {
+			if s.MultipleRunnerExec {
+				var runnerIds dal.AssignRunnerIds
+				var status dal.Status
+				var message string
+				for _, runner := range runners {
+					runnerIds = append(runnerIds, runner.ID)
+					// 发送到runner
+					if err := sendJob(runner, *job); err != nil {
+						hlog.Errorf("send job error: %s", err)
+						if status == "" {
+							status = dal.Failed
+						} else if status == dal.Success {
+							status = dal.PartialRunning
 						}
-						updateJobRunner(job.JobRunner.ID, status, message, runnerIds, &start, nil)
+						message += fmt.Sprintf("send job to runner[%s] error: %s; ", runner.Name, err)
+						continue
+					}
+
+					// if step success
+					if status == dal.Failed || status == dal.PartialRunning {
+						status = dal.PartialRunning
 					} else {
+						status = dal.Running
+					}
+				}
+				updateJobRunner(job.JobRunner.ID, status, message, runnerIds, &start, nil)
+			} else {
+				for _, runner := range runners {
+					if runner.PipelineID == 0 {
 						// 发送到runner
-						if err := sendJob(runners[0], *job); err != nil {
+						runnerIds := dal.AssignRunnerIds{runner.ID}
+						if err := sendJob(runner, *job); err != nil {
 							hlog.Errorf("send job error: %s", err)
-							runnerIds := dal.AssignRunnerIds{runners[0].ID}
 							updateJobRunner(job.JobRunner.ID, dal.Failed, err.Error(), runnerIds, nil, nil)
 							break
 						}
 
 						// if step success
-						updateJobRunner(job.JobRunner.ID, dal.Running, "", dal.AssignRunnerIds{runners[0].ID}, &start, nil)
+						updateJobRunner(job.JobRunner.ID, dal.Running, "", runnerIds, &start, nil)
+						break
 					}
-					break
-				}
-
-				if !s.MultipleRunnerExec {
-					hlog.Infof("no idle runner match label: %s, wait for %v to retry", s.RunnerLabelMatch, peroid)
-					time.Sleep(peroid)
 				}
 			}
 		}
 	}
 }
 
-func matchRunners(labelMatch string, multipleRunnerExec bool) ([]dal.Runner, error) {
+func matchRunners(labelMatch string) ([]dal.Runner, error) {
 	var runnerLabels []dal.RunnerLabel
 	if err := dal.DB.Find(&runnerLabels, "label = ?", labelMatch).Error; err != nil {
 		return nil, err
@@ -140,11 +124,7 @@ func matchRunners(labelMatch string, multipleRunnerExec bool) ([]dal.Runner, err
 	}
 
 	var runners []dal.Runner
-	db := dal.DB.Where("status = ? AND enable = ? AND id IN (?)", dal.Online, true, runnerIds)
-	if !multipleRunnerExec {
-		db = db.Where("busy = ?", false)
-	}
-	if err := db.Find(&runners).Error; err != nil {
+	if err := dal.DB.Where("status = ? AND enable = ? AND id IN (?)", dal.Online, true, runnerIds).Find(&runners).Error; err != nil {
 		return nil, err
 	}
 	if len(runners) == 0 {
@@ -182,7 +162,13 @@ func sendJob(runner dal.Runner, job JobExec) error {
 		}
 		return fmt.Errorf("send job failed, status code: %d", resp.StatusCode)
 	}
-	runner.Busy = true
+
+	runner.PipelineID = job.Job.PipelineID
+	var pipeline dal.Pipeline
+	if err := dal.DB.Last(&pipeline, "id = ?", job.Job.PipelineID).Error; err != nil {
+		return fmt.Errorf("get pipeline[%d] error: %s", job.Job.PipelineID, err)
+	}
+	runner.PipelineName = pipeline.Name
 	dal.DB.Save(&runner)
 	hlog.Info("send job success")
 	return nil

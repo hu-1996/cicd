@@ -7,13 +7,14 @@ type RegisterRunnerReq struct {
 }
 
 type RunnerResp struct {
-	ID        uint     `json:"id"`
-	Name      string   `json:"name"`
-	Status    string   `json:"status"`
-	Enable    bool     `json:"enable"`
-	Busy      bool     `json:"busy"`
-	Labels    []string `json:"labels"`
-	CreatedAt string   `json:"created_at"`
+	ID           uint     `json:"id"`
+	Name         string   `json:"name"`
+	Status       string   `json:"status"`
+	PipelineID   uint     `json:"pipeline_id"`
+	PipelineName string   `json:"pipeline"`
+	Enable       bool     `json:"enable"`
+	Labels       []string `json:"labels"`
+	CreatedAt    string   `json:"created_at"`
 }
 
 type ListRunnerReq struct {

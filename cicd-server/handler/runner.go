@@ -30,7 +30,6 @@ func RegisterRunner(ctx context.Context, c *app.RequestContext) {
 					Endpoint: runner.Endpoint,
 					Status:   dal.Online,
 					Message:  "",
-					Busy:     false,
 				}
 				if err := tx.Create(&r).Error; err != nil {
 					return err
@@ -147,7 +146,8 @@ func SetRunnerBusy(ctx context.Context, c *app.RequestContext) {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 		return
 	}
-	r.Busy = false
+	r.PipelineID = 0
+	r.PipelineName = ""
 	if err := dal.DB.Save(&r).Error; err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 		return

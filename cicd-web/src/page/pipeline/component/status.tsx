@@ -8,7 +8,7 @@ const colors: any = {
   success: "#50d71e",
   running: "#0095d9",
   pending: "#afafb0",
-  assigning: "#afafb0",
+  queueing: "#a0d8ef",
   partial_running: "#89c3eb",
   partial_success: "#98d98e",
 };
@@ -18,7 +18,7 @@ const status: any = {
   success: "✔️",
   running: "🚀",
   pending: "🧘‍♂️",
-  assigning: "🧘‍♂️",
+  queueing: "☕️",
   partial_running: "...🚀",
   partial_success: "...✔️",
 };

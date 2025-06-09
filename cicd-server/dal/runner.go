@@ -8,12 +8,13 @@ import (
 
 type Runner struct {
 	gorm.Model
-	Name     string
-	Endpoint string
-	Status   RunnerStatus
-	Message  string
-	Busy     bool
-	Enable   bool `gorm:"default:1"`
+	Name         string
+	Endpoint     string
+	Status       RunnerStatus
+	Message      string
+	PipelineID   uint
+	PipelineName string
+	Enable       bool `gorm:"default:1"`
 }
 
 type RunnerStatus string
@@ -25,12 +26,13 @@ const (
 
 func (r *Runner) Format() types.RunnerResp {
 	resp := types.RunnerResp{
-		ID:        r.ID,
-		Name:      r.Name,
-		Status:    string(r.Status),
-		Enable:    r.Enable,
-		Busy:      r.Busy,
-		CreatedAt: r.CreatedAt.Format("2006-01-02 15:04:05"),
+		ID:           r.ID,
+		Name:         r.Name,
+		PipelineID:   r.PipelineID,
+		PipelineName: r.PipelineName,
+		Status:       string(r.Status),
+		Enable:       r.Enable,
+		CreatedAt:    r.CreatedAt.Format("2006-01-02 15:04:05"),
 	}
 
 	var labels []RunnerLabel

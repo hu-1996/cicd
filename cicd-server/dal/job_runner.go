@@ -27,7 +27,7 @@ type Status string
 
 const (
 	Pending        Status = "pending"
-	Assigning      Status = "assigning"
+	Queueing       Status = "queueing"
 	Running        Status = "running"
 	PartialRunning Status = "partial_running"
 	Success        Status = "success"

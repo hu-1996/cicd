@@ -117,12 +117,12 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 		}
 
 		var runners []dal.JobRunner
-		for _, step := range steps {
+		for i, step := range steps {
 			runner := dal.JobRunner{
 				JobID:    job.ID,
 				StepID:   step.ID,
 				StepSort: step.Sort,
-				Status:   dal.Pending,
+				Status:   lo.Ternary(i == 0, dal.Queueing, dal.Pending),
 				Trigger:  step.Trigger,
 				Commands: step.Commands,
 			}
@@ -180,12 +180,18 @@ func StartJobStep(ctx context.Context, c *app.RequestContext) {
 
 	if jobRunner.Status != dal.Pending {
 		jobRunner.ID = 0
-		jobRunner.Status = dal.Pending
+		jobRunner.Status = dal.Queueing
 		jobRunner.Message = ""
 		jobRunner.AssignRunnerIds = []uint{}
 		jobRunner.EventStatus = map[dal.Status]int{}
 		jobRunner.Trigger = dal.TriggerManual
 		if err := dal.DB.Create(&jobRunner).Error; err != nil {
+			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+			return
+		}
+	} else {
+		jobRunner.Status = dal.Queueing
+		if err := dal.DB.Save(&jobRunner).Error; err != nil {
 			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 			return
 		}
