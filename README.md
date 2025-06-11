@@ -32,10 +32,10 @@ npm run dev
 ```bash
 # !!!如果是arm64机器把GOARCH换成arm64即可
 # cicd-server
-cd cicd-server && go mod tidy && GOOS=linux GOARCH=amd64 go build -a -o cicd-server main.go
+cd cicd-server && go mod tidy && GOOS=linux GOARCH=amd64 go build -a -ldflags="-s -w" -o cicd-server main.go
 
 # cicd-runner
-cd cicd-runner && go mod tidy && GOOS=linux GOARCH=amd64 go build -a -o cicd-runner main.go
+cd cicd-runner && go mod tidy && GOOS=linux GOARCH=amd64 go build -a -ldflags="-s -w" -o cicd-runner main.go
 
 # cicd-web
 cd cicd-web && npm run build
