@@ -170,16 +170,18 @@ func UpdatePipeline(ctx context.Context, c *app.RequestContext) {
 	}
 
 	var maxSortPipeline dal.Pipeline
-	var maxSort int
-	if err := dal.DB.Model(&dal.Pipeline{}).Where("group_name = ?", p.GroupName).Order("sort DESC").Last(&maxSortPipeline).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			maxSort = 0
+	maxSort := p.Sort
+	if pipeline.GroupName != p.GroupName {
+		if err := dal.DB.Model(&dal.Pipeline{}).Where("group_name = ?", pipeline.GroupName).Order("sort DESC").Last(&maxSortPipeline).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				maxSort = 0
+			} else {
+				c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+				return
+			}
 		} else {
-			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
-			return
+			maxSort = maxSortPipeline.Sort + 1
 		}
-	} else {
-		maxSort = maxSortPipeline.Sort + 1
 	}
 
 	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
