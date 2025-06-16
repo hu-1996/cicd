@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { FormProps } from "antd";
 import {
@@ -12,6 +12,7 @@ import {
   Row,
   Col,
   Popconfirm,
+  Select,
 } from "antd";
 import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
 import { fetchRequest } from "../../utils/fetch";
@@ -25,14 +26,20 @@ export default function NewPipeline() {
 
   const pipelineId = searchParams.get("id");
   const stepId = searchParams.get("step_id");
-  console.log("stepId", stepId);
-  console.log("pipelineId", pipelineId);
+
+  const [runnerLabels, setRunnerLabels] = useState<string[]>([]);
+
+
 
   useEffect(() => {
     if (stepId) {
       loadStepDetail();
     }
+
+    loadRunnerLabels()
   }, [stepId]);
+
+  
 
   type FieldType = {
     pipeline_id: number;
@@ -88,6 +95,13 @@ export default function NewPipeline() {
     });
     res.trigger_policy = res.trigger !== "manual";
     form.setFieldsValue(res);
+  };
+
+  const loadRunnerLabels = async () => {
+    const res = await fetchRequest("/api/list_runner_label", {
+      method: "GET",
+    });
+    setRunnerLabels(res);
   };
 
   const confirm = async () => {
@@ -163,7 +177,7 @@ export default function NewPipeline() {
           name="runner_label_match"
           rules={[{ required: true, message: "请输入执行机器标签" }]}
         >
-          <Input placeholder="请输入执行机器标签" />
+          <Select placeholder="请输入执行机器标签" options={runnerLabels.map((label) => ({ label, value: label }))} />
         </Form.Item>
 
         <Form.Item<FieldType>

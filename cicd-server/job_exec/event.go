@@ -71,7 +71,7 @@ func StartEventProcess() {
 		if sum == len(jobRunner.AssignRunnerIds) {
 			// 判断是否有下一步
 			if !StartNextStep(jobRunner.ID) {
-				StartOtherStep()
+				StartOtherStep(jobRunner.AssignRunnerIds)
 			}
 		}
 	}
@@ -117,20 +117,67 @@ func StartNextStep(jobRunnerID uint) bool {
 	return false
 }
 
-func StartOtherStep() {
-	var jobRunner dal.JobRunner
-	if err := dal.DB.Last(&jobRunner, "status = ?", dal.Queueing).Error; err != nil {
+func StartOtherStep(assignRunnerIds dal.AssignRunnerIds) {
+	if len(assignRunnerIds) == 0 {
 		return
 	}
 
-	var job dal.Job
-	if err := dal.DB.Last(&job, "id = ?", jobRunner.JobID).Error; err != nil {
+	var jobRunners []dal.JobRunner
+	if err := dal.DB.Find(&jobRunners, "status = ?", dal.Queueing).Error; err != nil {
 		return
 	}
 
-	var git dal.Git
-	if err := dal.DB.Last(&git, "pipeline_id = ?", job.PipelineID).Error; err != nil && err != gorm.ErrRecordNotFound {
+	if len(jobRunners) == 0 {
 		return
 	}
-	NewJobExec(job, jobRunner, git).AddJob()
+
+	var steps []dal.Step
+	if err := dal.DB.Find(&steps, "id IN (?)", lo.Map(jobRunners, func(item dal.JobRunner, _ int) uint {
+		return item.StepID
+	})).Error; err != nil {
+		hlog.Errorf("get steps error: %s", err)
+		return
+	}
+
+	if len(steps) == 0 {
+		return
+	}
+
+	var runnerLabels []dal.RunnerLabel
+	if err := dal.DB.Find(&runnerLabels, "label IN (?)", lo.Map(steps, func(item dal.Step, _ int) string {
+		return item.RunnerLabelMatch
+	})).Error; err != nil {
+		hlog.Errorf("get runners error: %s", err)
+		return
+	}
+
+	if len(runnerLabels) == 0 {
+		return
+	}
+
+	var runableJobRunners []dal.JobRunner
+	for _, runnerId := range assignRunnerIds {
+		for _, runnerLabel := range runnerLabels {
+			if runnerLabel.RunnerID == runnerId {
+				runableJobRunners = append(runableJobRunners, jobRunners...)
+			}
+		}
+	}
+
+	if len(runableJobRunners) == 0 {
+		return
+	}
+
+	for _, jobRunner := range runableJobRunners {
+		var job dal.Job
+		if err := dal.DB.Last(&job, "id = ?", jobRunner.JobID).Error; err != nil {
+			return
+		}
+
+		var git dal.Git
+		if err := dal.DB.Last(&git, "pipeline_id = ?", job.PipelineID).Error; err != nil && err != gorm.ErrRecordNotFound {
+			return
+		}
+		NewJobExec(job, jobRunner, git).AddJob()
+	}
 }

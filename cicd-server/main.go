@@ -45,6 +45,7 @@ func main() {
 	h.PUT("/api/enable_runner/:id", handler.EnableRunner)
 	h.PUT("/api/set_runner_busy/:id", handler.SetRunnerBusy)
 	h.DELETE("/api/delete_runner/:id", handler.DeleteRunner)
+	h.GET("/api/list_runner_label", handler.ListRunnerLabel)
 
 	h.POST("/api/start_job/:pipeline_id", handler.StartJob)
 	h.POST("/api/start_job_step/:job_runner_id", handler.StartJobStep)

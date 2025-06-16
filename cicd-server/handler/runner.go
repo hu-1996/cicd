@@ -168,3 +168,17 @@ func DeleteRunner(ctx context.Context, c *app.RequestContext) {
 	}
 	c.JSON(consts.StatusOK, utils.H{"data": "success"})
 }
+
+func ListRunnerLabel(ctx context.Context, c *app.RequestContext) {
+	var runnerLabels []dal.RunnerLabel
+	if err := dal.DB.Find(&runnerLabels).Error; err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+		return
+	}
+
+	rs := lo.Map(runnerLabels, func(item dal.RunnerLabel, _ int) string {
+		return item.Label
+	})
+
+	c.JSON(consts.StatusOK, lo.Uniq(rs))
+}
