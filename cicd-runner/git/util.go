@@ -1,6 +1,7 @@
 package git
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -51,24 +52,21 @@ func GitCloneOrPull(dir, repoUrl, branch, username, password string) (string, er
 
 	var repo *git.Repository
 	if clone {
-		opts := git.CloneOptions{
-			URL:           repoUrl,
-			Progress:      os.Stdout,
-			ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", branch)),
-			SingleBranch:  true,
-		}
-		if auth != nil {
-			opts.Auth = auth
-		}
-		r, err := git.PlainClone(dir, false, &opts)
+		repo, err = gitClone(dir, repoUrl, branch, username, password, auth)
 		if err != nil {
 			return "", err
 		}
-		repo = r
 	} else {
 		r, err := git.PlainOpen(dir)
 		if err != nil {
-			return "", err
+			if errors.Is(err, git.ErrRepositoryNotExists) {
+				r, err = gitClone(dir, repoUrl, branch, username, password, auth)
+				if err != nil {
+					return "", err
+				}
+			} else {
+				return "", err
+			}
 		}
 		w, err := r.Worktree()
 		if err != nil {
@@ -100,4 +98,21 @@ func GitCloneOrPull(dir, repoUrl, branch, username, password string) (string, er
 	}
 
 	return commit.ID().String(), nil
+}
+
+func gitClone(dir, repoUrl, branch, username, password string, auth transport.AuthMethod) (*git.Repository, error) {
+	opts := git.CloneOptions{
+		URL:           repoUrl,
+		Progress:      os.Stdout,
+		ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", branch)),
+		SingleBranch:  true,
+	}
+	if auth != nil {
+		opts.Auth = auth
+	}
+	r, err := git.PlainClone(dir, false, &opts)
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
 }
