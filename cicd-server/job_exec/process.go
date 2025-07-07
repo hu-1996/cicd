@@ -43,6 +43,18 @@ func Run() {
 	for job := range jobChan {
 		hlog.Infof("start job: %+v", job)
 
+		// 检查任务是否被取消
+		var jobRunner dal.JobRunner
+		if err := dal.DB.Last(&jobRunner, "id = ?", job.JobRunner.ID).Error; err != nil {
+			hlog.Errorf("get job runner[%d] error: %s", job.JobRunner.ID, err)
+			continue
+		}
+
+		if jobRunner.Status != dal.Queueing {
+			hlog.Infof("job runner[%d] status is not queueing, skip", job.JobRunner.ID)
+			continue
+		}
+
 		var s dal.Step
 		if err := dal.DB.Last(&s, "id = ?", job.JobRunner.StepID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {

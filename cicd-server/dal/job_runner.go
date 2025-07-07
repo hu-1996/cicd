@@ -33,6 +33,7 @@ const (
 	Success        Status = "success"
 	PartialSuccess Status = "partial_success"
 	Failed         Status = "failed"
+	Canceled       Status = "canceled"
 )
 
 type EventStatus map[Status]int

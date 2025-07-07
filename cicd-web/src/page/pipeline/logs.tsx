@@ -7,10 +7,11 @@ import {
   Alert,
   Space,
   Button,
+  Typography,
   message as msg,
 } from "antd";
 import type { DescriptionsProps } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
+import { ReloadOutlined, CloseOutlined } from "@ant-design/icons";
 import { fetchRequest } from "../../utils/fetch";
 
 export default function Logs() {
@@ -34,7 +35,7 @@ export default function Logs() {
       const timer = setInterval(() => {
         loadLogs(job?.job_runner?.last_runner_id);
       }, 5000);
-  
+
       return () => {
         clearInterval(timer); // 清理定时器避免内存泄漏
       };
@@ -42,6 +43,7 @@ export default function Logs() {
   }, [job?.job_runner?.last_runner_id]);
 
   const loadDetail = async () => {
+    setLog("");
     const res = await fetchRequest("/api/job_runner/" + id, {
       method: "GET",
     });
@@ -61,9 +63,9 @@ export default function Logs() {
       {
         key: "2",
         label: "执行机器",
-        children: res?.job_runner?.assign_runners
-          ?.map((r: any) => r.name)
-          .join(", ") || '-',
+        children:
+          res?.job_runner?.assign_runners?.map((r: any) => r.name).join(", ") ||
+          "-",
       },
       {
         key: "3",
@@ -108,6 +110,14 @@ export default function Logs() {
     msg.success("开始执行");
   };
 
+  const cancalStep = async (jobRunnerId: number) => {
+    await fetchRequest("/api/cancel_job_runner/" + jobRunnerId, {
+      method: "POST",
+    });
+    msg.success("已尝试取消执行，具体是否执行请查看执行日志");
+    loadDetail();
+  };
+
   return (
     <div>
       <Descriptions title={job?.pipeline?.name} items={items} />
@@ -123,17 +133,36 @@ export default function Logs() {
             }}
           />
         )}
-        <Button
-          type="primary"
-          icon={<ReloadOutlined />}
-          onClick={() => startStep(job?.job_runner?.last_runner_id)}
-        >
-          重新执行
-        </Button>
+        {(job?.job_runner?.last_status === "canceled" ||
+          job?.job_runner?.last_status === "failed" ||
+          job?.job_runner?.last_status === "partial_success" ||
+          job?.job_runner?.last_status === "success") && (
+          <Button
+            type="primary"
+            icon={<ReloadOutlined />}
+            onClick={() => startStep(job?.job_runner?.last_runner_id)}
+          >
+            重新执行
+          </Button>
+        )}
+        {job?.job_runner?.last_status === "queueing" && (
+          <>
+            <Button
+              color="danger"
+              icon={<CloseOutlined />}
+              onClick={() => cancalStep(job?.job_runner?.last_runner_id)}
+            >
+              取消执行
+            </Button>
+            <Typography.Text type="secondary">
+              为了保证任务的原子性，无法做到执行中的任务取消执行，也无法保证能否取消成功，具体是否执行请查看执行日志
+            </Typography.Text>
+          </>
+        )}
       </Space>
       {message && <Alert message={message} type="error" className="mt-4" />}
       <div
-        className="overflow-y-scroll mt-4 bg-black text-white p-4 rounded-md" 
+        className="overflow-y-scroll mt-4 bg-black text-white p-4 rounded-md"
         style={{ height: "calc(100vh - 300px)", minHeight: "300px" }}
         ref={(el) => {
           if (el) {

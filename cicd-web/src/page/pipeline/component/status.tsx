@@ -11,6 +11,7 @@ const colors: any = {
   queueing: "#a0d8ef",
   partial_running: "#89c3eb",
   partial_success: "#98d98e",
+  canceled: "#afafb0",
 };
 
 const status: any = {
@@ -21,6 +22,7 @@ const status: any = {
   queueing: "☕️",
   partial_running: "...🚀",
   partial_success: "...✔️",
+  canceled: "🚫",
 };
 
 export default function Status(props: any) {

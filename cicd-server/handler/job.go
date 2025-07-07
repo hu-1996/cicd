@@ -77,6 +77,26 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
+	if len(steps) == 0 {
+		c.JSON(consts.StatusBadRequest, utils.H{"error": "没有可执行的步骤"})
+		return
+	}
+
+	stepIds := lo.Map(steps, func(step dal.Step, _ int) uint {
+		return step.ID
+	})
+
+	var jobRunners []*dal.JobRunner
+	if err := dal.DB.Find(&jobRunners, "step_id IN (?) AND status IN (?)", stepIds, []dal.Status{dal.Queueing, dal.Running, dal.PartialRunning}).Error; err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+		return
+	}
+
+	if len(jobRunners) > 0 {
+		c.JSON(consts.StatusBadRequest, utils.H{"error": "已经有正在执行的任务，请稍后再试"})
+		return
+	}
+
 	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
 		mapEnv := make(map[string]string)
 		for _, env := range pipeline.Envs {
@@ -178,23 +198,32 @@ func StartJobStep(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	if jobRunner.Status != dal.Pending {
-		jobRunner.ID = 0
-		jobRunner.Status = dal.Queueing
-		jobRunner.Message = ""
-		jobRunner.AssignRunnerIds = []uint{}
-		jobRunner.EventStatus = map[dal.Status]int{}
-		jobRunner.Trigger = dal.TriggerManual
-		if err := dal.DB.Create(&jobRunner).Error; err != nil {
+	if jobRunner.Status == dal.Success || jobRunner.Status == dal.Failed || jobRunner.Status == dal.PartialSuccess || jobRunner.Status == dal.Canceled {
+		if err := dal.DB.Transaction(func(tx *gorm.DB) error {
+			jobRunner.Status = dal.Failed
+			jobRunner.Message = "已执行重新执行，请查看新的执行记录"
+			if err := tx.Save(&jobRunner).Error; err != nil {
+				return err
+			}
+
+			jobRunner.ID = 0
+			jobRunner.Status = dal.Queueing
+			jobRunner.Message = ""
+			jobRunner.AssignRunnerIds = []uint{}
+			jobRunner.EventStatus = map[dal.Status]int{}
+			jobRunner.Trigger = dal.TriggerManual
+			if err := tx.Create(&jobRunner).Error; err != nil {
+				return err
+			}
+
+			return nil
+		}); err != nil {
 			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 			return
 		}
 	} else {
-		jobRunner.Status = dal.Queueing
-		if err := dal.DB.Save(&jobRunner).Error; err != nil {
-			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
-			return
-		}
+		c.JSON(consts.StatusBadRequest, utils.H{"error": "当前状态不支持重新执行"})
+		return
 	}
 
 	var git dal.Git
@@ -324,4 +353,32 @@ func JobRunnerLog(ctx context.Context, c *app.RequestContext) {
 	}
 
 	c.JSON(consts.StatusOK, string(file))
+}
+
+func CancelJobRunner(ctx context.Context, c *app.RequestContext) {
+	var job types.PathJobRunnerReq
+	if err := c.BindAndValidate(&job); err != nil {
+		c.JSON(consts.StatusBadRequest, utils.H{"error": err.Error()})
+		return
+	}
+
+	var jobRunner dal.JobRunner
+	if err := dal.DB.Last(&jobRunner, "id = ?", job.JobRunnerID).Error; err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+		return
+	}
+
+	if jobRunner.Status != dal.Queueing {
+		c.JSON(consts.StatusBadRequest, utils.H{"error": "当前状态不支持取消"})
+		return
+	}
+
+	jobRunner.Status = dal.Canceled
+	jobRunner.Message = "已主动取消"
+	if err := dal.DB.Save(&jobRunner).Error; err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(consts.StatusOK, utils.H{"data": "success"})
 }

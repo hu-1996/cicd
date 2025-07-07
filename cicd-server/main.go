@@ -52,6 +52,7 @@ func main() {
 	h.GET("/api/pipeline_jobs/:pipeline_id", handler.PipelineJobs)
 	h.GET("/api/job_runner/:job_runner_id", handler.JobRunnerDetail)
 	h.GET("/api/job_runner_log/:job_runner_id", handler.JobRunnerLog)
+	h.POST("/api/cancel_job_runner/:job_runner_id", handler.CancelJobRunner)
 
 	h.GET("/api/list_step", handler.ListStep)
 	h.GET("/api/step/:id", handler.StepDetail)
