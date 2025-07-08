@@ -6,6 +6,7 @@ import {
   CaretRightOutlined,
   FolderOpenOutlined,
   DeleteOutlined,
+  CopyOutlined,
 } from "@ant-design/icons";
 import Status from "./component/status";
 
@@ -57,6 +58,14 @@ export default function Pipeline() {
     loadPipeline();
   };
 
+  const copyPipeline = async (id: number) => {
+    await fetchRequest("/api/copy_pipeline/" + id, {
+      method: "POST",
+    });
+    message.success("复制成功");
+    loadPipeline();
+  };
+
   return (
     <div className="p-2">
       <Space>
@@ -97,6 +106,10 @@ export default function Pipeline() {
                         onClick={() =>
                           navigate("/new_pipeline/pipeline?id=" + item.id)
                         }
+                      />,
+                      <CopyOutlined
+                        key={"copy"}
+                        onClick={() => copyPipeline(item.id)}
                       />,
                       <Popconfirm
                         title="提示"

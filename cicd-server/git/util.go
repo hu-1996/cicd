@@ -1,14 +1,14 @@
 package git
 
 import (
+	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-git/v5/plumbing/transport"
-	"github.com/go-git/go-git/v5/plumbing/transport/http"
-	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
 // 判断 URL 是否是 SSH URL
@@ -17,33 +17,33 @@ func isSSHURL(url string) bool {
 }
 
 func TestConnect(repoUrl, username, password string) error {
-	var auth transport.AuthMethod
+	// 构建git命令
+	var gitCmd string
 	if username != "" && password != "" {
-		auth = &http.BasicAuth{
-			Username: username,
-			Password: password,
-		}
+		// 使用用户名密码认证
+		repoUrlWithAuth := strings.Replace(repoUrl, "https://", fmt.Sprintf("https://%s:%s@", username, password), 1)
+		gitCmd = fmt.Sprintf("git ls-remote %s", repoUrlWithAuth)
 	} else if isSSHURL(repoUrl) {
+		// 使用SSH认证
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return err
 		}
+
 		privateKeyFile := filepath.Join(homeDir, ".ssh", "id_rsa")
-		_, err = os.Stat(privateKeyFile)
-		if err == nil {
-			auth, _ = ssh.NewPublicKeysFromFile("git", privateKeyFile, "")
+		hlog.Infof("privateKeyFile: %s", privateKeyFile)
+		if _, err := os.Stat(privateKeyFile); err != nil {
+			return errors.New("private key file not found in path: " + privateKeyFile)
 		}
+		gitCmd = fmt.Sprintf("GIT_SSH_COMMAND='ssh -i %s' git ls-remote %s", privateKeyFile, repoUrl)
+	} else {
+		gitCmd = fmt.Sprintf("git ls-remote %s", repoUrl)
 	}
 
-	opts := git.ListOptions{}
-	if auth != nil {
-		opts.Auth = auth
-	}
-	_, err := git.NewRemote(nil, &config.RemoteConfig{
-		URLs: []string{repoUrl},
-	}).List(&opts)
-	if err != nil {
-		return err
+	// 执行git命令
+	cmd := exec.Command("sh", "-c", gitCmd)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git command failed: %v, output: %s", err, string(output))
 	}
 
 	return nil

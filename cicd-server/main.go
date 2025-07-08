@@ -67,6 +67,7 @@ func main() {
 	h.POST("/api/create_pipeline", handler.CreatePipeline)
 	h.PUT("/api/update_pipeline/:id", handler.UpdatePipeline)
 	h.DELETE("/api/delete_pipeline/:id", handler.DeletePipeline)
+	h.POST("/api/copy_pipeline/:id", handler.CopyPipeline)
 
 	h.POST("/api/test_git", handler.TestGit)
 

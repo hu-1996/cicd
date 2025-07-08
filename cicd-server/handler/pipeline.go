@@ -248,3 +248,57 @@ func SortPipeline(ctx context.Context, c *app.RequestContext) {
 	}
 	c.JSON(consts.StatusOK, utils.H{"data": "success"})
 }
+
+func CopyPipeline(ctx context.Context, c *app.RequestContext) {
+	var pipeline types.PathPipelineReq
+	if err := c.BindAndValidate(&pipeline); err != nil {
+		c.JSON(consts.StatusBadRequest, utils.H{"error": err.Error()})
+		return
+	}
+
+	var p dal.Pipeline
+	if err := dal.DB.First(&p, "id = ?", pipeline.ID).Error; err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+		return
+	}
+
+	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
+		newP := p
+		newP.ID = 0
+		newP.Name = p.Name + "_copy"
+		newP.Sort = p.Sort + 1
+		if err := tx.Create(&newP).Error; err != nil {
+			return err
+		}
+
+		if p.UseGit {
+			var git dal.Git
+			if err := tx.First(&git, "pipeline_id = ?", p.ID).Error; err != nil {
+				return err
+			}
+			git.ID = 0
+			git.PipelineID = newP.ID
+			if err := tx.Create(&git).Error; err != nil {
+				return err
+			}
+		}
+
+		var steps []*dal.Step
+		if err := tx.Find(&steps, "pipeline_id = ?", p.ID).Error; err != nil {
+			return err
+		}
+		for _, step := range steps {
+			step.ID = 0
+			step.PipelineID = newP.ID
+		}
+
+		if err := tx.Create(&steps).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+		return
+	}
+	c.JSON(consts.StatusOK, utils.H{"data": "success"})
+}

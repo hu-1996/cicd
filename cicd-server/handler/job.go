@@ -221,6 +221,13 @@ func StartJobStep(ctx context.Context, c *app.RequestContext) {
 			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 			return
 		}
+	} else if jobRunner.Status == dal.Pending {
+		jobRunner.Status = dal.Queueing
+		jobRunner.Message = ""
+		if err := dal.DB.Save(&jobRunner).Error; err != nil {
+			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+			return
+		}
 	} else {
 		c.JSON(consts.StatusBadRequest, utils.H{"error": "当前状态不支持重新执行"})
 		return
@@ -232,6 +239,8 @@ func StartJobStep(ctx context.Context, c *app.RequestContext) {
 			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 			return
 		}
+
+		git.Pull = true
 	}
 	jobexec.NewJobExec(j, jobRunner, git).AddJob()
 
@@ -365,11 +374,6 @@ func CancelJobRunner(ctx context.Context, c *app.RequestContext) {
 	var jobRunner dal.JobRunner
 	if err := dal.DB.Last(&jobRunner, "id = ?", job.JobRunnerID).Error; err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
-		return
-	}
-
-	if jobRunner.Status != dal.Queueing {
-		c.JSON(consts.StatusBadRequest, utils.H{"error": "当前状态不支持取消"})
 		return
 	}
 

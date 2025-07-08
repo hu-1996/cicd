@@ -238,6 +238,8 @@ func addLog(runnerId uint, log string) {
 	if log != "" {
 		log = fmt.Sprintf("[%s] %s", name, log)
 	}
+
+	hlog.Infof("add log[%d]: %s", runnerId, log)
 	logChan <- &types.Log{
 		JobRunnerID: runnerId,
 		Log:         log,

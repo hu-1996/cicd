@@ -1,44 +1,21 @@
 package git
 
 import (
-	"errors"
+	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
+	"os/exec"
+	"strings"
+	"sync"
 
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/transport"
-	"github.com/go-git/go-git/v5/plumbing/transport/http"
-	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
-// 判断 URL 是否是 SSH URL
-func isSSHURL(url string) bool {
-	return len(url) >= 4 && url[:4] == "git@"
-}
-
 func GitCloneOrPull(dir, repoUrl, branch, username, password string) (string, error) {
-	var auth transport.AuthMethod
-	if username != "" && password != "" {
-		auth = &http.BasicAuth{
-			Username: username,
-			Password: password,
-		}
-	} else if isSSHURL(repoUrl) {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		privateKeyFile := filepath.Join(homeDir, ".ssh", "id_rsa")
-		_, err = os.Stat(privateKeyFile)
-		if err == nil {
-			auth, _ = ssh.NewPublicKeysFromFile("git", privateKeyFile, "")
-		}
-	}
-
+	var err error
 	var clone bool
-	_, err := os.Stat(dir)
+
+	_, err = os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			clone = true
@@ -50,69 +27,68 @@ func GitCloneOrPull(dir, repoUrl, branch, username, password string) (string, er
 		}
 	}
 
-	var repo *git.Repository
+	var cmd *exec.Cmd
 	if clone {
-		repo, err = gitClone(dir, repoUrl, branch, username, password, auth)
-		if err != nil {
-			return "", err
+		// 构造 clone 命令
+		if username != "" && password != "" {
+			// http(s) 认证
+			authUrl := strings.Replace(repoUrl, "://", fmt.Sprintf("://%s:%s@", username, password), 1)
+			cmd = exec.Command("git", "clone", "-b", branch, "--single-branch", authUrl, dir)
+		} else {
+			// ssh 或匿名
+			cmd = exec.Command("git", "clone", "-b", branch, "--single-branch", repoUrl, dir)
 		}
+
 	} else {
-		r, err := git.PlainOpen(dir)
-		if err != nil {
-			if errors.Is(err, git.ErrRepositoryNotExists) {
-				r, err = gitClone(dir, repoUrl, branch, username, password, auth)
-				if err != nil {
-					return "", err
-				}
-			} else {
-				return "", err
-			}
-		}
-		w, err := r.Worktree()
-		if err != nil {
-			return "", err
-		}
-		opts := git.PullOptions{
-			RemoteName:    "origin",
-			ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", branch)),
-			SingleBranch:  true,
-		}
-		if auth != nil {
-			opts.Auth = auth
-		}
-		err = w.Pull(&opts)
-		if err != nil && err != git.NoErrAlreadyUpToDate {
-			return "", err
-		}
-		repo = r
+		// pull
+		cmd = exec.Command("git", "-C", dir, "pull", "origin", branch)
+	}
+	// 创建管道获取标准输出
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		hlog.Errorf("cmd stdout pipe error: %s", err)
 	}
 
-	head, err := repo.Head()
+	// 创建管道获取标准错误
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		hlog.Errorf("cmd stderr pipe error: %s", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		hlog.Errorf("cmd start error: %s", err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			hlog.Infof("[stdout] %s", scanner.Text())
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			hlog.Infof("[stderr] %s", scanner.Text())
+		}
+	}()
+
+	err = cmd.Wait()
+	wg.Wait()
 	if err != nil {
 		return "", err
 	}
 
-	commit, err := repo.CommitObject(head.Hash())
+	hlog.Infof("git clone or pull success, dir: %s", dir)
+
+	// 获取 commit id
+	cmd = exec.Command("git", "-C", dir, "rev-parse", "HEAD")
+	out, err := cmd.Output()
 	if err != nil {
 		return "", err
 	}
-
-	return commit.ID().String(), nil
-}
-
-func gitClone(dir, repoUrl, branch, username, password string, auth transport.AuthMethod) (*git.Repository, error) {
-	opts := git.CloneOptions{
-		URL:           repoUrl,
-		Progress:      os.Stdout,
-		ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", branch)),
-		SingleBranch:  true,
-	}
-	if auth != nil {
-		opts.Auth = auth
-	}
-	r, err := git.PlainClone(dir, false, &opts)
-	if err != nil {
-		return nil, err
-	}
-	return r, nil
+	return strings.TrimSpace(string(out)), nil
 }

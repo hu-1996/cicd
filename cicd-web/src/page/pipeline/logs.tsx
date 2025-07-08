@@ -133,10 +133,10 @@ export default function Logs() {
             }}
           />
         )}
-        {(job?.job_runner?.last_status === "canceled" ||
-          job?.job_runner?.last_status === "failed" ||
-          job?.job_runner?.last_status === "partial_success" ||
-          job?.job_runner?.last_status === "success") && (
+        {job?.job_runner?.last_status === "canceled" ||
+        job?.job_runner?.last_status === "failed" ||
+        job?.job_runner?.last_status === "partial_success" ||
+        job?.job_runner?.last_status === "success" ? (
           <Button
             type="primary"
             icon={<ReloadOutlined />}
@@ -144,8 +144,7 @@ export default function Logs() {
           >
             重新执行
           </Button>
-        )}
-        {job?.job_runner?.last_status === "queueing" && (
+        ) : (
           <>
             <Button
               color="danger"
