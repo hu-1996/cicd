@@ -130,7 +130,6 @@ func (job *JobExec) RunCommand() {
 			job.AddLog(err.Error())
 			return
 		}
-		defer job.RestoreBranch(dir)
 
 		job.AddLog(fmt.Sprintf("git clone or pull success, branch: %s, commit id: %s", job.Git.Branch, job.Git.CommitId))
 	}
@@ -280,45 +279,29 @@ func (j *JobExec) GitCloneOrPull(dir string) error {
 		}
 	}
 
-	var cmd *exec.Cmd
 	if clone {
 		if err = j.cloneRepo(dir); err != nil {
 			return handleExitError(err, dir)
 		}
 	} else {
-		// 获取当前分支
-		cmd = exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref ", "HEAD")
-		out, err := cmd.Output()
-		if err != nil {
-			return handleExitError(err, dir)
+		// 获取远程分支
+		if err := j.fetchBranch(dir); err != nil {
+			return err
 		}
-		currentBranch := strings.TrimSpace(string(out))
 
-		// 如果分支不同,删除目录重新clone
-		if currentBranch != j.Git.Branch {
-			hlog.Infof("branch is not match, delete dir and clone")
+		// 切换到远程分支
+		if err = j.checkoutBranch(dir); err != nil {
+			return err
+		}
 
-			if err := os.RemoveAll(dir); err != nil {
-				return err
-			}
-			if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-				return err
-			}
-
-			if err = j.cloneRepo(dir); err != nil {
-				return handleExitError(err, dir)
-			}
-		} else {
-			if err = j.pullRepo(dir); err != nil {
-				return handleExitError(err, dir)
-			}
+		// 拉取远程分支
+		if err = j.pullRepo(dir); err != nil {
+			return handleExitError(err, dir)
 		}
 	}
 
-	// checkout commit id
-	cmd = exec.Command("git", "-C", dir, "checkout", j.Git.CommitId)
-	err = cmd.Run()
-	if err != nil {
+	// 切换到commit id
+	if err = j.checkoutCommit(dir); err != nil {
 		return err
 	}
 
@@ -413,14 +396,36 @@ func (j *JobExec) pullRepo(dir string) error {
 	return nil
 }
 
-func (j *JobExec) RestoreBranch(dir string) {
+func (j *JobExec) fetchBranch(dir string) error {
+	cmd := exec.Command("git", "-C", dir, "fetch")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return handleExitError(err, dir)
+	}
+	j.AddLog(string(out))
+	return nil
+}
+
+func (j *JobExec) checkoutBranch(dir string) error {
 	cmd := exec.Command("git", "-C", dir, "checkout", j.Git.Branch)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		hlog.Errorf("restore branch error: %s", err)
-		handleExitError(err, dir)
+		hlog.Errorf("checkout branch error: %s", err)
+		return handleExitError(err, dir)
 	}
-	hlog.Infof("restore branch: %s, out: %s", j.Git.Branch, string(out))
+	j.AddLog(string(out))
+	return nil
+}
+
+func (j *JobExec) checkoutCommit(dir string) error {
+	cmd := exec.Command("git", "-C", dir, "checkout", j.Git.CommitId)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		hlog.Errorf("checkout commit error: %s", err)
+		return handleExitError(err, dir)
+	}
+	j.AddLog(string(out))
+	return nil
 }
 
 func handleExitError(err error, dir string) error {
