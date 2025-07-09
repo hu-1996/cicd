@@ -147,7 +147,8 @@ export default function Logs() {
         ) : (
           <>
             <Button
-              color="danger"
+              type="primary" 
+              danger
               icon={<CloseOutlined />}
               onClick={() => cancalStep(job?.job_runner?.last_runner_id)}
             >

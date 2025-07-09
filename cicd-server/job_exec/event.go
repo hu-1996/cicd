@@ -101,10 +101,15 @@ func StartNextStep(jobRunnerID uint) bool {
 			return false
 		} else {
 			var git dal.Git
-			if err := dal.DB.Last(&git, "pipeline_id = ?", job.PipelineID).Error; err != nil && err != gorm.ErrRecordNotFound {
-				return false
+			if err := dal.DB.Last(&git, "pipeline_id = ?", job.PipelineID).Error; err != nil {
+				if err != gorm.ErrRecordNotFound {
+					return false
+				}
+			} else {
+				git.CommitID = job.CommitID
+				git.Branch = job.Branch
 			}
-			git.Pull = true
+
 			nextRunner.Status = dal.Queueing
 			if err := dal.DB.Save(&nextRunner).Error; err != nil {
 				hlog.Errorf("update job runner error: %s", err)
@@ -176,10 +181,14 @@ func StartOtherStep(assignRunnerIds dal.AssignRunnerIds) {
 		}
 
 		var git dal.Git
-		if err := dal.DB.Last(&git, "pipeline_id = ?", job.PipelineID).Error; err != nil && err != gorm.ErrRecordNotFound {
-			return
+		if err := dal.DB.Last(&git, "pipeline_id = ?", job.PipelineID).Error; err != nil {
+			if err != gorm.ErrRecordNotFound {
+				return
+			}
+		} else {
+			git.CommitID = job.CommitID
+			git.Branch = job.Branch
 		}
-		git.Pull = true
 		NewJobExec(job, jobRunner, git).AddJob()
 	}
 }

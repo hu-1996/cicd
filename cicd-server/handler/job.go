@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"cicd-server/dal"
+	gitutils "cicd-server/git"
 	jobexec "cicd-server/job_exec"
 	"cicd-server/types"
 
@@ -97,49 +98,51 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
-		mapEnv := make(map[string]string)
-		for _, env := range pipeline.Envs {
-			mapEnv[env.Key] = env.Val
-		}
-		for _, env := range job.Envs {
-			mapEnv[env.Key] = env.Val
-		}
+	mapEnv := make(map[string]string)
+	for _, env := range pipeline.Envs {
+		mapEnv[env.Key] = env.Val
+	}
+	for _, env := range job.Envs {
+		mapEnv[env.Key] = env.Val
+	}
 
-		var envs []dal.Env
-		for k, v := range mapEnv {
-			envs = append(envs, dal.Env{
-				Key: k,
-				Val: v,
-			})
-		}
-		job := dal.Job{
-			PipelineID: job.PipelineID,
-			Envs:       envs,
-		}
-		if err := tx.Create(&job).Error; err != nil {
+	var envs []dal.Env
+	for k, v := range mapEnv {
+		envs = append(envs, dal.Env{
+			Key: k,
+			Val: v,
+		})
+	}
+	j := dal.Job{
+		PipelineID: job.PipelineID,
+		Envs:       envs,
+	}
+
+	var git dal.Git
+	var runners []dal.JobRunner
+	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&j).Error; err != nil {
 			return err
 		}
 
 		var newTag string
 		switch {
 		case strings.Contains(pipeline.TagTemplate, "${COUNT}"):
-			newTag = strings.ReplaceAll(pipeline.TagTemplate, "${COUNT}", strconv.Itoa(int(job.ID)))
+			newTag = strings.ReplaceAll(pipeline.TagTemplate, "${COUNT}", strconv.Itoa(int(j.ID)))
 		case strings.Contains(pipeline.TagTemplate, "${TIMESTAMP}"):
 			newTag = strings.ReplaceAll(pipeline.TagTemplate, "${TIMESTAMP}", strconv.FormatInt(time.Now().Unix(), 10))
 		case strings.Contains(pipeline.TagTemplate, "${DATETIME}"):
 			newTag = strings.ReplaceAll(pipeline.TagTemplate, "${DATETIME}", time.Now().Format("20060102150405"))
 		}
-		job.Tag = cmp.Or(newTag, pipeline.TagTemplate)
+		j.Tag = cmp.Or(newTag, pipeline.TagTemplate)
 
-		if err := tx.Save(&job).Error; err != nil {
+		if err := tx.Save(&j).Error; err != nil {
 			return err
 		}
 
-		var runners []dal.JobRunner
 		for i, step := range steps {
 			runner := dal.JobRunner{
-				JobID:    job.ID,
+				JobID:    j.ID,
 				StepID:   step.ID,
 				StepSort: step.Sort,
 				Status:   lo.Ternary(i == 0, dal.Queueing, dal.Pending),
@@ -153,23 +156,31 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 			runners = append(runners, runner)
 		}
 
-		// job exec
-		if len(runners) > 0 {
-			var git dal.Git
-			if pipeline.UseGit {
-				if err := tx.Last(&git, "pipeline_id = ?", job.PipelineID).Error; err != nil {
-					return err
-				}
-				git.Pull = true
-			}
-			jobexec.NewJobExec(job, runners[0], git).AddJob()
-		}
-
 		return nil
 	}); err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 		return
 	}
+
+	if pipeline.UseGit {
+		if err := dal.DB.Last(&git, "pipeline_id = ?", job.PipelineID).Error; err != nil {
+			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+			return
+		}
+		commit, err := gitutils.RepoLastCommit(git.Repository, git.Branch, git.Username, git.Password)
+		if err != nil {
+			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+			return
+		}
+		git.CommitID = commit
+		j.CommitID = commit
+		j.Branch = git.Branch
+		if err := dal.DB.Save(&j).Error; err != nil {
+			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+			return
+		}
+	}
+	jobexec.NewJobExec(j, runners[0], git).AddJob()
 	c.JSON(consts.StatusOK, utils.H{"data": "success"})
 }
 
@@ -198,14 +209,9 @@ func StartJobStep(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	if jobRunner.Status == dal.Success || jobRunner.Status == dal.Failed || jobRunner.Status == dal.PartialSuccess || jobRunner.Status == dal.Canceled {
+	switch jobRunner.Status {
+	case dal.Success, dal.Failed, dal.PartialSuccess, dal.Canceled:
 		if err := dal.DB.Transaction(func(tx *gorm.DB) error {
-			jobRunner.Status = dal.Failed
-			jobRunner.Message = "已执行重新执行，请查看新的执行记录"
-			if err := tx.Save(&jobRunner).Error; err != nil {
-				return err
-			}
-
 			jobRunner.ID = 0
 			jobRunner.Status = dal.Queueing
 			jobRunner.Message = ""
@@ -221,14 +227,14 @@ func StartJobStep(ctx context.Context, c *app.RequestContext) {
 			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 			return
 		}
-	} else if jobRunner.Status == dal.Pending {
+	case dal.Pending:
 		jobRunner.Status = dal.Queueing
 		jobRunner.Message = ""
 		if err := dal.DB.Save(&jobRunner).Error; err != nil {
 			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 			return
 		}
-	} else {
+	default:
 		c.JSON(consts.StatusBadRequest, utils.H{"error": "当前状态不支持重新执行"})
 		return
 	}
@@ -238,9 +244,10 @@ func StartJobStep(ctx context.Context, c *app.RequestContext) {
 		if err := dal.DB.Last(&git, "pipeline_id = ?", j.PipelineID).Error; err != nil {
 			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 			return
+		} else {
+			git.CommitID = j.CommitID
+			git.Branch = j.Branch
 		}
-
-		git.Pull = true
 	}
 	jobexec.NewJobExec(j, jobRunner, git).AddJob()
 
@@ -377,9 +384,20 @@ func CancelJobRunner(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	jobRunner.Status = dal.Canceled
-	jobRunner.Message = "已主动取消"
-	if err := dal.DB.Save(&jobRunner).Error; err != nil {
+	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
+		jobRunner.Status = dal.Canceled
+		jobRunner.Message = "已主动取消"
+		if err := tx.Save(&jobRunner).Error; err != nil {
+			return err
+		}
+
+		for _, runnerId := range jobRunner.AssignRunnerIds {
+			if err := tx.Model(&dal.Runner{}).Where("id = ?", runnerId).Updates(map[string]interface{}{"pipeline_id": 0, "pipeline_name": ""}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 		return
 	}

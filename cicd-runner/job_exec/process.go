@@ -3,6 +3,7 @@ package jobexec
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,9 +11,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
+	"strings"
+	"time"
 
-	"cicd-runner/git"
 	"cicd-runner/types"
 
 	"github.com/cloudwego/hertz/pkg/common/hlog"
@@ -50,7 +51,7 @@ type Git struct {
 	Branch     string
 	Username   string
 	Password   string
-	Pull       bool
+	CommitId   string
 }
 
 type JobExec struct {
@@ -63,6 +64,29 @@ func (j *JobExec) AddJob() {
 	jobChan <- j
 }
 
+func (j *JobExec) AddLog(log string) {
+	if log != "" {
+		log = fmt.Sprintf("%s [%s] %s", time.Now().Format("2006/01/02 15:04:05"), name, log)
+	}
+
+	hlog.Infof("add log[%d]: %s", j.JobRunner.ID, log)
+	logChan <- &types.Log{
+		JobRunnerID: j.JobRunner.ID,
+		Log:         log,
+	}
+}
+
+func (j *JobExec) AddEvent(success bool, message string) {
+	if message != "" {
+		message = fmt.Sprintf("[%s] %s", name, message)
+	}
+	eventChan <- &types.Event{
+		JobRunnerID: j.JobRunner.ID,
+		Success:     success,
+		Message:     message, //message,
+	}
+}
+
 func Run(n, su string) {
 	hlog.Infof("start job exec")
 	name = n
@@ -72,143 +96,122 @@ func Run(n, su string) {
 	go handleLog()
 
 	for job := range jobChan {
-		if job == nil {
-			hlog.Info("job channel closed")
-			return
-		}
-		var succeed bool
-		hlog.Infof("start job: %+v", job)
-
-		var dir string
-		if job.Git.ID != 0 {
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				hlog.Errorf("get home dir error: %s", err)
-				addEvent(job.JobRunner.ID, false, err.Error())
-				addLog(job.JobRunner.ID, err.Error())
-				continue
-			}
-			dir = filepath.Join(homeDir, ".cicd-runner", "repos", fmt.Sprintf("%d", job.Git.ID))
-			if job.Git.Pull {
-				commitId, err := git.GitCloneOrPull(dir, job.Git.Repository, job.Git.Branch, job.Git.Username, job.Git.Password)
-				if err != nil {
-					hlog.Errorf("git clone or pull error: %s", err)
-					addEvent(job.JobRunner.ID, false, err.Error())
-					addLog(job.JobRunner.ID, err.Error())
-					continue
-				}
-				addLog(job.JobRunner.ID, fmt.Sprintf("git clone or pull success, branch: %s, commit id: %s", job.Git.Branch, commitId))
-			}
-		}
-
-		job.Job.Envs = append(job.Job.Envs, Env{
-			Key: "VERSION",
-			Val: job.Job.Tag,
-		})
-		for _, env := range job.Job.Envs {
-			addLog(job.JobRunner.ID, fmt.Sprintf("set env: %s=%s", env.Key, env.Val))
-			if err := os.Setenv(env.Key, env.Val); err != nil {
-				hlog.Errorf("set env error: %s", err)
-				addEvent(job.JobRunner.ID, false, err.Error())
-				addLog(job.JobRunner.ID, err.Error())
-				continue
-			}
-			succeed = true
-		}
-
-		if succeed {
-			for _, command := range job.JobRunner.Commands {
-				if !succeed {
-					continue
-				}
-				cmd := exec.Command("sh", "-c", command)
-				cmd.Dir = dir
-				hlog.Infof("run command: %s", command)
-
-				addLog(job.JobRunner.ID, fmt.Sprintf("%s# %s", dir, command))
-				// 创建管道获取标准输出
-				stdout, err := cmd.StdoutPipe()
-				if err != nil {
-					hlog.Errorf("cmd stdout pipe error: %s", err)
-				}
-
-				// 创建管道获取标准错误
-				stderr, err := cmd.StderrPipe()
-				if err != nil {
-					hlog.Errorf("cmd stderr pipe error: %s", err)
-				}
-
-				if err := cmd.Start(); err != nil {
-					hlog.Errorf("cmd start error: %s", err)
-				}
-				var wg sync.WaitGroup
-				wg.Add(2)
-				go func() {
-					defer wg.Done()
-					scanner := bufio.NewScanner(stdout)
-					for scanner.Scan() {
-						addLog(job.JobRunner.ID, fmt.Sprintf("[stdout] %s", scanner.Text()))
-					}
-				}()
-				go func() {
-					defer wg.Done()
-					scanner := bufio.NewScanner(stderr)
-					for scanner.Scan() {
-						addLog(job.JobRunner.ID, fmt.Sprintf("[stderr] %s", scanner.Text()))
-					}
-				}()
-
-				err = cmd.Wait()
-				wg.Wait()
-				if err != nil {
-					if exitErr, ok := err.(*exec.ExitError); ok {
-						hlog.Errorf("exit code: %d", exitErr.ExitCode())
-						addEvent(job.JobRunner.ID, false, fmt.Sprintf("exit code: %d", exitErr.ExitCode()))
-						addLog(job.JobRunner.ID, fmt.Sprintf("exit code: %d", exitErr.ExitCode()))
-						succeed = false
-					} else {
-						hlog.Errorf("run command error: %s", err)
-						addEvent(job.JobRunner.ID, false, err.Error())
-						addLog(job.JobRunner.ID, err.Error())
-						succeed = false
-					}
-				}
-				// output, err := cmd.Output()
-				// if err != nil {
-				// 	hlog.Errorf("run command error: %s", err)
-				// 	addEvent(job.JobRunner.ID, false, err.Error())
-				// 	addLog(job.JobRunner.ID, err.Error())
-				// 	succeed = false
-				// 	continue
-				// }
-				// addLog(job.JobRunner.ID, fmt.Sprintf("output:\n %s", string(output)))
-				// hlog.Infof("run command success: %s", string(output))
-				hlog.Info("----------------------------------------")
-			}
-		}
-
-		if succeed {
-			addEvent(job.JobRunner.ID, true, "")
-			addLog(job.JobRunner.ID, "This step was executed successfully.")
-		}
-
-		// 清除环境变量
-		for _, env := range job.Job.Envs {
-			if err := os.Unsetenv(env.Key); err != nil {
-				hlog.Errorf("unset env error: %s", err)
-			}
-		}
+		job.RunCommand()
 	}
 }
 
-func addEvent(runnerId uint, success bool, message string) {
-	if message != "" {
-		message = fmt.Sprintf("[%s] %s", name, message)
+func (job *JobExec) RunCommand() {
+	if job == nil {
+		hlog.Info("job channel closed")
+		return
 	}
-	eventChan <- &types.Event{
-		JobRunnerID: runnerId,
-		Success:     success,
-		Message:     message, //message,
+	hlog.Infof("start job: %+v", job)
+
+	var dir string
+	if job.Git.ID > 0 {
+		if job.Git.CommitId == "" {
+			job.AddEvent(false, "commit id is empty")
+			job.AddLog("commit id is empty")
+			return
+		}
+
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			hlog.Errorf("get home dir error: %s", err)
+			job.AddEvent(false, err.Error())
+			job.AddLog(err.Error())
+			return
+		}
+		dir = filepath.Join(homeDir, ".cicd-runner", "repos", fmt.Sprintf("%d", job.Git.ID))
+
+		if err = job.GitCloneOrPull(dir); err != nil {
+			hlog.Errorf("git clone or pull error: %s", err)
+			job.AddEvent(false, err.Error())
+			job.AddLog(err.Error())
+			return
+		}
+		defer job.RestoreBranch(dir)
+
+		job.AddLog(fmt.Sprintf("git clone or pull success, branch: %s, commit id: %s", job.Git.Branch, job.Git.CommitId))
+	}
+
+	job.Job.Envs = append(job.Job.Envs, Env{
+		Key: "VERSION",
+		Val: job.Job.Tag,
+	})
+	for _, env := range job.Job.Envs {
+		job.AddLog(fmt.Sprintf("set env: %s=%s", env.Key, env.Val))
+		if err := os.Setenv(env.Key, env.Val); err != nil {
+			hlog.Errorf("set env error: %s", err)
+			job.AddEvent(false, err.Error())
+			job.AddLog(err.Error())
+			return
+		}
+	}
+
+	succeed := true
+	for _, command := range job.JobRunner.Commands {
+		cmd := exec.Command("sh", "-c", command)
+		cmd.Dir = dir
+		hlog.Infof("run command: %s", command)
+
+		job.AddLog(fmt.Sprintf("%s$ %s", cmp.Or(dir, "~"), command))
+		// 创建管道获取标准输出
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			hlog.Errorf("cmd stdout pipe error: %s", err)
+		}
+
+		// 创建管道获取标准错误
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			hlog.Errorf("cmd stderr pipe error: %s", err)
+		}
+
+		if err := cmd.Start(); err != nil {
+			hlog.Errorf("cmd start error: %s", err)
+		}
+
+		go func() {
+			scanner := bufio.NewScanner(stdout)
+			for scanner.Scan() {
+				job.AddLog(scanner.Text())
+			}
+		}()
+		go func() {
+			scanner := bufio.NewScanner(stderr)
+			for scanner.Scan() {
+				job.AddLog(scanner.Text())
+			}
+		}()
+
+		err = cmd.Wait()
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				hlog.Errorf("exit code: %d", exitErr.ExitCode())
+				job.AddEvent(false, fmt.Sprintf("exit code: %d", exitErr.ExitCode()))
+				job.AddLog(fmt.Sprintf("exit code: %d", exitErr.ExitCode()))
+				succeed = false
+			} else {
+				hlog.Errorf("run command error: %s", err)
+				job.AddEvent(false, err.Error())
+				job.AddLog(err.Error())
+				succeed = false
+			}
+		}
+		hlog.Info("----------------------------------------")
+	}
+
+	if succeed {
+		job.AddEvent(true, "")
+		job.AddLog("This step was executed successfully.")
+	}
+
+	// 清除环境变量
+	for _, env := range job.Job.Envs {
+		if err := os.Unsetenv(env.Key); err != nil {
+			hlog.Errorf("unset env error: %s", err)
+		}
 	}
 }
 
@@ -232,18 +235,6 @@ func sendEvent(event *types.Event) {
 		hlog.Warnf("send event failed, status code: %d", resp.StatusCode)
 	}
 	hlog.Info("send event success")
-}
-
-func addLog(runnerId uint, log string) {
-	if log != "" {
-		log = fmt.Sprintf("[%s] %s", name, log)
-	}
-
-	hlog.Infof("add log[%d]: %s", runnerId, log)
-	logChan <- &types.Log{
-		JobRunnerID: runnerId,
-		Log:         log,
-	}
 }
 
 func handleLog() {
@@ -271,4 +262,175 @@ func sendLog(log *types.Log) {
 		hlog.Warnf("send log failed, status code: %d, body: %s", resp.StatusCode, string(body))
 	}
 	hlog.Info("send log success")
+}
+
+func (j *JobExec) GitCloneOrPull(dir string) error {
+	var err error
+	var clone bool
+
+	_, err = os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			clone = true
+			if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+
+	var cmd *exec.Cmd
+	if clone {
+		if err = j.cloneRepo(dir); err != nil {
+			return handleExitError(err, dir)
+		}
+	} else {
+		// 获取当前分支
+		cmd = exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref ", "HEAD")
+		out, err := cmd.Output()
+		if err != nil {
+			return handleExitError(err, dir)
+		}
+		currentBranch := strings.TrimSpace(string(out))
+
+		// 如果分支不同,删除目录重新clone
+		if currentBranch != j.Git.Branch {
+			hlog.Infof("branch is not match, delete dir and clone")
+
+			if err := os.RemoveAll(dir); err != nil {
+				return err
+			}
+			if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+				return err
+			}
+
+			if err = j.cloneRepo(dir); err != nil {
+				return handleExitError(err, dir)
+			}
+		} else {
+			if err = j.pullRepo(dir); err != nil {
+				return handleExitError(err, dir)
+			}
+		}
+	}
+
+	// checkout commit id
+	cmd = exec.Command("git", "-C", dir, "checkout", j.Git.CommitId)
+	err = cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	hlog.Infof("git clone or pull success, dir: %s", dir)
+	return nil
+}
+
+func (j *JobExec) cloneRepo(dir string) error {
+	var cmd *exec.Cmd
+	if j.Git.Username != "" && j.Git.Password != "" {
+		// http(s) 认证
+		authUrl := strings.Replace(j.Git.Repository, "://", fmt.Sprintf("://%s:%s@", j.Git.Username, j.Git.Password), 1)
+		cmd = exec.Command("git", "clone", "-b", j.Git.Branch, "--single-branch", authUrl, dir)
+	} else {
+		// ssh 或匿名
+		cmd = exec.Command("git", "clone", "-b", j.Git.Branch, "--single-branch", j.Git.Repository, dir)
+	}
+
+	// 创建管道获取标准输出
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	// 创建管道获取标准错误
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			j.AddLog(scanner.Text())
+		}
+	}()
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			j.AddLog(scanner.Text())
+		}
+	}()
+
+	err = cmd.Wait()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (j *JobExec) pullRepo(dir string) error {
+	cmd := exec.Command("git", "-C", dir, "pull")
+
+	// 创建管道获取标准输出
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	// 创建管道获取标准错误
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			j.AddLog(scanner.Text())
+		}
+	}()
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			j.AddLog(scanner.Text())
+		}
+	}()
+
+	err = cmd.Wait()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (j *JobExec) RestoreBranch(dir string) {
+	cmd := exec.Command("git", "-C", dir, "checkout", j.Git.Branch)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		hlog.Errorf("restore branch error: %s", err)
+		handleExitError(err, dir)
+	}
+	hlog.Infof("restore branch: %s, out: %s", j.Git.Branch, string(out))
+}
+
+func handleExitError(err error, dir string) error {
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		hlog.Infof("remove dir: %s", dir)
+		if err := os.RemoveAll(dir); err != nil {
+			hlog.Errorf("remove dir error: %s", err)
+		}
+
+		return fmt.Errorf("exit code: %d, error: %s", exitErr.ExitCode(), string(exitErr.Stderr))
+	}
+	return err
 }

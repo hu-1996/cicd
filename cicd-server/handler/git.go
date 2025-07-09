@@ -18,11 +18,11 @@ func TestGit(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	err := git.TestConnect(req.Repository, req.Username, req.Password)
+	lastCommit, err := git.RepoLastCommit(req.Repository, req.Branch, req.Username, req.Password)
 	if err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(consts.StatusOK, utils.H{"message": "success"})
+	c.JSON(consts.StatusOK, utils.H{"message": "success", "last_commit": lastCommit})
 }

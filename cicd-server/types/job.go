@@ -21,6 +21,8 @@ type JobResp struct {
 	Envs       Envs        `json:"envs"`
 	UpdatedAt  string      `json:"updated_at"`
 	JobRunners []JobRunner `json:"job_runners"`
+	Branch     string      `json:"branch"`
+	CommitID   string      `json:"commit_id"`
 }
 
 type JobRunner struct {

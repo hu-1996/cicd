@@ -39,9 +39,30 @@ func (j *JobExec) AddJob() {
 	}
 }
 
+func (j *JobExec) UpdateJobRunner(status dal.Status, message string, runnerIds dal.AssignRunnerIds, startTime *time.Time, endTime *time.Time) {
+	up := map[string]interface{}{"status": status, "message": message}
+	if len(runnerIds) > 0 {
+		up["assign_runner_ids"] = runnerIds
+	}
+	if startTime != nil {
+		up["start_time"] = startTime
+	}
+	if endTime != nil {
+		up["end_time"] = endTime
+	}
+	dal.DB.Model(&dal.JobRunner{}).Where("id = ?", j.JobRunner.ID).Updates(up)
+}
+
 func Run() {
 	for job := range jobChan {
 		hlog.Infof("start job: %+v", job)
+
+		if job.Git.ID > 0 {
+			if job.Git.CommitID == "" {
+				job.UpdateJobRunner(dal.Failed, "git commit id is empty", nil, nil, nil)
+				continue
+			}
+		}
 
 		// 检查任务是否被取消
 		var jobRunner dal.JobRunner
@@ -62,14 +83,14 @@ func Run() {
 				continue
 			}
 			hlog.Errorf("get step[%d] error: %s", job.JobRunner.StepID, err)
-			updateJobRunner(job.JobRunner.ID, dal.Failed, err.Error(), nil, nil, nil)
+			job.UpdateJobRunner(dal.Failed, err.Error(), nil, nil, nil)
 			continue
 		}
 
 		runners, err := matchRunners(s.RunnerLabelMatch)
 		if err != nil {
 			hlog.Errorf("detect idle runners error: %s", err)
-			updateJobRunner(job.JobRunner.ID, dal.Failed, err.Error(), nil, nil, nil)
+			job.UpdateJobRunner(dal.Failed, err.Error(), nil, nil, nil)
 			continue
 		}
 		start := time.Now()
@@ -99,7 +120,7 @@ func Run() {
 						status = dal.Running
 					}
 				}
-				updateJobRunner(job.JobRunner.ID, status, message, runnerIds, &start, nil)
+				job.UpdateJobRunner(status, message, runnerIds, &start, nil)
 			} else {
 				for _, runner := range runners {
 					if runner.PipelineID == 0 {
@@ -107,12 +128,12 @@ func Run() {
 						runnerIds := dal.AssignRunnerIds{runner.ID}
 						if err := sendJob(runner, *job); err != nil {
 							hlog.Errorf("send job error: %s", err)
-							updateJobRunner(job.JobRunner.ID, dal.Failed, err.Error(), runnerIds, nil, nil)
+							job.UpdateJobRunner(dal.Failed, err.Error(), runnerIds, nil, nil)
 							break
 						}
 
 						// if step success
-						updateJobRunner(job.JobRunner.ID, dal.Running, "", runnerIds, &start, nil)
+						job.UpdateJobRunner(dal.Running, "", runnerIds, &start, nil)
 						break
 					}
 				}
@@ -184,18 +205,4 @@ func sendJob(runner dal.Runner, job JobExec) error {
 	dal.DB.Save(&runner)
 	hlog.Info("send job success")
 	return nil
-}
-
-func updateJobRunner(jobRunnerId uint, status dal.Status, message string, runnerIds dal.AssignRunnerIds, startTime *time.Time, endTime *time.Time) {
-	up := map[string]interface{}{"status": status, "message": message}
-	if len(runnerIds) > 0 {
-		up["assign_runner_ids"] = runnerIds
-	}
-	if startTime != nil {
-		up["start_time"] = startTime
-	}
-	if endTime != nil {
-		up["end_time"] = endTime
-	}
-	dal.DB.Model(&dal.JobRunner{}).Where("id = ?", jobRunnerId).Updates(up)
 }

@@ -13,6 +13,8 @@ type Job struct {
 	PipelineID uint
 	Tag        string
 	Envs       Envs `gorm:"type:json"`
+	Branch     string
+	CommitID   string
 }
 
 func (j *Job) Format() types.JobResp {
@@ -55,5 +57,7 @@ func (j *Job) Format() types.JobResp {
 		Envs:       evns,
 		UpdatedAt:  j.UpdatedAt.Format("2006-01-02 15:04:05"),
 		JobRunners: rs,
+		Branch:     j.Branch,
+		CommitID:   j.CommitID,
 	}
 }

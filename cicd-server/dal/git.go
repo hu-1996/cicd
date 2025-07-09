@@ -9,5 +9,5 @@ type Git struct {
 	Branch     string
 	Username   string
 	Password   string
-	Pull       bool `gorm:"-"`
+	CommitID   string
 }
