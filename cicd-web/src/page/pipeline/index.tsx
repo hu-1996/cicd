@@ -89,48 +89,50 @@ export default function Pipeline() {
               dataSource={item.pipelines}
               renderItem={(item: any) => (
                 <List.Item>
-                  <Card
-                    key={item.id}
-                    title={item.name}
-                    actions={[
-                      <CaretRightOutlined
-                        key={"start"}
-                        onClick={() => startJob(item.id)}
-                      />,
-                      <FolderOpenOutlined
-                        key={"history"}
-                        onClick={() => navigate("/history?id=" + item.id)}
-                      />,
-                      <SettingOutlined
-                        key={"setting"}
-                        onClick={() =>
-                          navigate("/new_pipeline/pipeline?id=" + item.id)
-                        }
-                      />,
-                      <CopyOutlined
-                        key={"copy"}
-                        onClick={() => copyPipeline(item.id)}
-                      />,
-                      <Popconfirm
-                        title="提示"
-                        description={`是否删除${item.name}?`}
-                        onConfirm={() => confirm(item.id)}
-                        okText="确定"
-                        cancelText="取消"
-                      >
-                        <DeleteOutlined key={"setting"} />
-                      </Popconfirm>,
-                    ]}
-                    style={{ width: 300 }}
-                  >
-                    <div className="text-[12px]">Tag：{item.last_tag}</div>
-                    <div className="text-[12px]">
-                      最后更新时间：{item.last_update_at}
-                    </div>
-                    <div className="flex">
-                      <Status steps={item.steps} />
-                    </div>
-                  </Card>
+                  <div style={{ minWidth: 300 }}>
+                    <Card
+                      key={item.id}
+                      title={item.name}
+                      actions={[
+                        <CaretRightOutlined
+                          key={"start"}
+                          onClick={() => startJob(item.id)}
+                        />,
+                        <FolderOpenOutlined
+                          key={"history"}
+                          onClick={() => navigate("/history?id=" + item.id)}
+                        />,
+                        <SettingOutlined
+                          key={"setting"}
+                          onClick={() =>
+                            navigate("/new_pipeline/pipeline?id=" + item.id)
+                          }
+                        />,
+                        <CopyOutlined
+                          key={"copy"}
+                          onClick={() => copyPipeline(item.id)}
+                        />,
+                        <Popconfirm
+                          title="提示"
+                          description={`是否删除${item.name}?`}
+                          onConfirm={() => confirm(item.id)}
+                          okText="确定"
+                          cancelText="取消"
+                        >
+                          <DeleteOutlined key={"setting"} />
+                        </Popconfirm>,
+                      ]}
+                      style={{ width: '100%' }}
+                    >
+                      <div className="text-[12px]">Tag：{item.last_tag}</div>
+                      <div className="text-[12px]">
+                        最后更新时间：{item.last_update_at}
+                      </div>
+                      <div className="flex">
+                        <Status steps={item.steps} />
+                      </div>
+                    </Card>
+                  </div>
                 </List.Item>
               )}
             />
