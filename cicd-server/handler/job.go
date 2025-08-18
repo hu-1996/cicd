@@ -3,7 +3,10 @@ package handler
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -169,6 +172,11 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 		}
 		commit, err := gitutils.RepoLastCommit(git.Repository, git.Branch, git.Username, git.Password)
 		if err != nil {
+			runners[0].Status = dal.Failed
+			runners[0].Message = err.Error()
+			if err := dal.DB.Save(&runners[0]).Error; err != nil {
+				hlog.Errorf("save job runner failed: %v", err)
+			}
 			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 			return
 		}
@@ -385,6 +393,28 @@ func CancelJobRunner(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
+		if jobRunner.Status == dal.Canceled {
+			return errors.New("job runner already canceled")
+		}
+		if jobRunner.Status == dal.Success {
+			return errors.New("job runner already success")
+		}
+		if jobRunner.Status == dal.Failed {
+			return errors.New("job runner already failed")
+		}
+
+		var dbjob dal.Job
+		if err := tx.First(&dbjob, "id = ?", jobRunner.JobID).Error; err != nil {
+			return err
+		}
+
+		var runners []*dal.Runner
+		if err := tx.Find(&runners, "id IN (?)", lo.Map(jobRunner.AssignRunnerIds, func(item uint, _ int) uint {
+			return item
+		})).Error; err != nil {
+			return err
+		}
+
 		jobRunner.Status = dal.Canceled
 		jobRunner.Message = "已主动取消"
 		if err := tx.Save(&jobRunner).Error; err != nil {
@@ -396,6 +426,13 @@ func CancelJobRunner(ctx context.Context, c *app.RequestContext) {
 				return err
 			}
 		}
+
+		for _, runner := range runners {
+			if err := cancelJob(runner, jobRunner.ID); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	}); err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
@@ -403,4 +440,32 @@ func CancelJobRunner(ctx context.Context, c *app.RequestContext) {
 	}
 
 	c.JSON(consts.StatusOK, utils.H{"data": "success"})
+}
+
+func cancelJob(runner *dal.Runner, jobRunnerID uint) error {
+	client := &http.Client{}
+	httpReq, _ := http.NewRequest("POST", runner.Endpoint+"/cancel_job/"+strconv.Itoa(int(jobRunnerID)), nil)
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		if opErr, ok := err.(*net.OpError); ok {
+			if sysErr, ok := opErr.Err.(*net.OpError); ok && sysErr.Op == "dial" {
+				dal.DB.Model(&dal.Runner{}).Where("id = ?", runner.ID).Update("status", dal.Offline)
+			}
+		}
+		// 或者通过字符串匹配简单判断
+		if strings.Contains(err.Error(), "connection refused") {
+			dal.DB.Model(&dal.Runner{}).Where("id = ?", runner.ID).Update("status", dal.Offline)
+		}
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		if resp.StatusCode == 404 {
+			dal.DB.Model(&dal.Runner{}).Where("id = ?", runner.ID).Update("status", dal.Offline)
+		}
+		return fmt.Errorf("send job failed, status code: %d", resp.StatusCode)
+	}
+
+	return nil
 }

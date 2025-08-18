@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"cmp"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"cicd-runner/types"
@@ -20,11 +22,14 @@ import (
 )
 
 var (
-	jobChan   = make(chan *JobExec, 5)
-	serverUrl string
-	name      string
-	eventChan = make(chan *types.Event, 1000)
-	logChan   = make(chan *types.Log, 1000)
+	jobChan       = make(chan *JobExec, 5)
+	serverUrl     string
+	name          string
+	eventChan     = make(chan *types.Event, 1000)
+	logChan       = make(chan *types.Log, 1000)
+	mutex         sync.Mutex
+	jobCancelFunc = make(map[uint]context.CancelFunc)
+	jobMap        = make(map[uint]*JobExec)
 )
 
 type Job struct {
@@ -64,6 +69,18 @@ func (j *JobExec) AddJob() {
 	jobChan <- j
 }
 
+func CancelJob(jobRunnerID uint) {
+	hlog.Infof("cancel job: %d", jobRunnerID)
+	mutex.Lock()
+	defer mutex.Unlock()
+	if job, ok := jobMap[jobRunnerID]; ok {
+		job.AddLog("Received job interruption request, processing...")
+	}
+	if cancel, ok := jobCancelFunc[jobRunnerID]; ok {
+		cancel()
+	}
+}
+
 func (j *JobExec) AddLog(log string) {
 	if log != "" {
 		log = fmt.Sprintf("%s [%s] %s", time.Now().Format("2006/01/02 15:04:05"), name, log)
@@ -96,11 +113,20 @@ func Run(n, su string) {
 	go handleLog()
 
 	for job := range jobChan {
-		job.RunCommand()
+		job.Exec()
 	}
 }
 
-func (job *JobExec) RunCommand() {
+func (job *JobExec) Exec() {
+	mutex.Lock()
+	ctx, cancel := context.WithCancel(context.Background())
+	jobCancelFunc[job.JobRunner.ID] = cancel
+	jobMap[job.JobRunner.ID] = job
+	mutex.Unlock()
+	job.RunCommand(ctx)
+}
+
+func (job *JobExec) RunCommand(ctx context.Context) {
 	if job == nil {
 		hlog.Info("job channel closed")
 		return
@@ -149,69 +175,90 @@ func (job *JobExec) RunCommand() {
 	}
 
 	succeed := true
+	defer func() {
+		if succeed {
+			job.AddEvent(true, "")
+			job.AddLog("This step was executed successfully.")
+		}
+
+		// 清除环境变量
+		for _, env := range job.Job.Envs {
+			if err := os.Unsetenv(env.Key); err != nil {
+				hlog.Errorf("unset env error: %s", err)
+			}
+		}
+
+		mutex.Lock()
+		delete(jobCancelFunc, job.JobRunner.ID)
+		mutex.Unlock()
+	}()
 	for _, command := range job.JobRunner.Commands {
-		cmd := exec.Command("sh", "-c", command)
-		cmd.Dir = dir
-		hlog.Infof("run command: %s", command)
-
-		job.AddLog(fmt.Sprintf("%s$ %s", cmp.Or(dir, "~"), command))
-		// 创建管道获取标准输出
-		stdout, err := cmd.StdoutPipe()
-		if err != nil {
-			hlog.Errorf("cmd stdout pipe error: %s", err)
-		}
-
-		// 创建管道获取标准错误
-		stderr, err := cmd.StderrPipe()
-		if err != nil {
-			hlog.Errorf("cmd stderr pipe error: %s", err)
-		}
-
-		if err := cmd.Start(); err != nil {
-			hlog.Errorf("cmd start error: %s", err)
-		}
-
-		go func() {
-			scanner := bufio.NewScanner(stdout)
-			for scanner.Scan() {
-				job.AddLog(scanner.Text())
-			}
-		}()
-		go func() {
-			scanner := bufio.NewScanner(stderr)
-			for scanner.Scan() {
-				job.AddLog(scanner.Text())
-			}
-		}()
-
-		err = cmd.Wait()
-		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				hlog.Errorf("exit code: %d", exitErr.ExitCode())
-				job.AddEvent(false, fmt.Sprintf("exit code: %d", exitErr.ExitCode()))
-				job.AddLog(fmt.Sprintf("exit code: %d", exitErr.ExitCode()))
-				succeed = false
-			} else {
-				hlog.Errorf("run command error: %s", err)
-				job.AddEvent(false, err.Error())
-				job.AddLog(err.Error())
-				succeed = false
+		select {
+		case <-ctx.Done():
+			job.AddEvent(false, "job interrupted")
+			job.AddLog("job interrupted")
+			return
+		default:
+			succeed = job.command(ctx, dir, command)
+			if !succeed {
+				return
 			}
 		}
-		hlog.Info("----------------------------------------")
 	}
 
-	if succeed {
-		job.AddEvent(true, "")
-		job.AddLog("This step was executed successfully.")
+}
+
+func (job *JobExec) command(ctx context.Context, dir, command string) bool {
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd.Dir = dir
+	hlog.Infof("run command: %s", command)
+
+	job.AddLog(fmt.Sprintf("%s$ %s", cmp.Or(dir, "~"), command))
+	// 创建管道获取标准输出
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		hlog.Errorf("cmd stdout pipe error: %s", err)
 	}
 
-	// 清除环境变量
-	for _, env := range job.Job.Envs {
-		if err := os.Unsetenv(env.Key); err != nil {
-			hlog.Errorf("unset env error: %s", err)
+	// 创建管道获取标准错误
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		hlog.Errorf("cmd stderr pipe error: %s", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		hlog.Errorf("cmd start error: %s", err)
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			job.AddLog(scanner.Text())
+		}
+	}()
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			job.AddLog(scanner.Text())
+		}
+	}()
+
+	err = cmd.Wait()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			hlog.Errorf("exit code: %v", exitErr)
+			job.AddEvent(false, fmt.Sprintf("exit code: %d", exitErr.ExitCode()))
+			job.AddLog(fmt.Sprintf("exit code: %d", exitErr.ExitCode()))
+			return false
+		} else {
+			hlog.Errorf("run command error: %s", err)
+			job.AddEvent(false, err.Error())
+			job.AddLog(err.Error())
+			return false
 		}
 	}
+	hlog.Info("----------------------------------------")
+	return true
 }
 
 func handleEvent() {

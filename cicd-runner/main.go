@@ -36,6 +36,7 @@ func main() {
 			go jobexec.Run(name, serverUrl)
 			h := server.Default(server.WithHostPorts(":5913"))
 			h.POST("/start_job", handler.StartJob)
+			h.POST("/cancel_job/:job_runner_id", handler.CancelJob)
 
 			h.Spin()
 		},

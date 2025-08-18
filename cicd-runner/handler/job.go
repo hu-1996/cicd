@@ -23,3 +23,19 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 
 	c.JSON(consts.StatusOK, utils.H{"data": "success"})
 }
+
+type CancelJobReq struct {
+	JobRunnerID uint `path:"job_runner_id"`
+}
+
+func CancelJob(ctx context.Context, c *app.RequestContext) {
+	var req CancelJobReq
+	if err := c.BindAndValidate(&req); err != nil {
+		c.JSON(consts.StatusBadRequest, utils.H{"error": err.Error()})
+		return
+	}
+	jobexec.CancelJob(req.JobRunnerID)
+
+	hlog.Infof("cancel job success")
+	c.JSON(consts.StatusOK, utils.H{"data": "success"})
+}
