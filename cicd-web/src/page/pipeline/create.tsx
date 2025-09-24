@@ -50,7 +50,11 @@ export default function NewPipeline() {
     if (selectedKeys[0] === "new_pipeline") {
       navigate("/new_pipeline/pipeline");
       return;
-    } else if (selectedKeys[0] === pipelineName || selectedKeys.length === 0) {
+    } else if (
+      selectedKeys[0] === pipelineName ||
+      selectedKeys.length === 0 ||
+      (info.node.children ?? []).length > 0
+    ) {
       navigate("/new_pipeline/pipeline?id=" + searchParams.get("id"));
     } else {
       console.log("selectedKeys[0]", selectedKeys);
@@ -63,16 +67,17 @@ export default function NewPipeline() {
     }
   };
 
-  const onDrop: TreeProps['onDrop'] = async (info) => {
+  const onDrop: TreeProps["onDrop"] = async (info) => {
     const dropKey = info.node.key;
     const dragKey = info.dragNode.key;
-    const dropPos = info.node.pos.split('-');
-    const dropPosition = info.dropPosition - Number(dropPos[dropPos.length - 1]); // the drop position relative to the drop node, inside 0, top -1, bottom 1
+    const dropPos = info.node.pos.split("-");
+    const dropPosition =
+      info.dropPosition - Number(dropPos[dropPos.length - 1]); // the drop position relative to the drop node, inside 0, top -1, bottom 1
 
     const loop = (
       data: TreeDataNode[],
       key: React.Key,
-      callback: (node: TreeDataNode, i: number, data: TreeDataNode[]) => void,
+      callback: (node: TreeDataNode, i: number, data: TreeDataNode[]) => void
     ) => {
       for (let i = 0; i < data.length; i++) {
         if (data[i].key === key) {
@@ -117,19 +122,22 @@ export default function NewPipeline() {
     setTreeData(data);
     await fetchRequest("/api/sort_step/" + searchParams.get("id"), {
       method: "POST",
-      body: JSON.stringify({ step_ids: data[0]?.children?.map((item) => item.key) }),
+      body: JSON.stringify({
+        step_ids: data[0]?.children?.map((item) => item.key),
+      }),
     });
   };
 
   return (
     <div className="flex justify-start">
-      <Tree
+      <Tree.DirectoryTree
         showLine
+        draggable
+        expandAction={false}
         switcherIcon={<DownOutlined />}
         onSelect={onSelect}
         treeData={treeData}
-        className="w-[220px] p-5"
-        draggable
+        className="w-[260px] p-5"
         onDrop={onDrop}
       />
       <Outlet />
