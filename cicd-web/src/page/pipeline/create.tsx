@@ -137,7 +137,7 @@ export default function NewPipeline() {
         switcherIcon={<DownOutlined />}
         onSelect={onSelect}
         treeData={treeData}
-        className="w-[260px] p-5"
+        className="w-[300px] p-5"
         onDrop={onDrop}
       />
       <Outlet />
