@@ -9,6 +9,7 @@ import {
   CopyOutlined,
 } from "@ant-design/icons";
 import Status from "./component/status";
+import { colors, status, intro } from "./../../config/consts";
 
 import { fetchRequest } from "../../utils/fetch";
 
@@ -76,6 +77,21 @@ export default function Pipeline() {
           设置
         </Button>
       </Space>
+      <Space className="float-right">
+        {Object.entries(status).map((item: any) => (
+          <Space>
+            <div
+              className="h-[16px] w-[40px] bg-[#afafb0] text-center leading-[16px] cursor-pointer"
+              style={{
+                backgroundColor: colors[item[0]],
+              }}
+            >
+              {item[1]}
+            </div>
+            {intro[item[0]]}
+          </Space>
+        ))}
+      </Space>
       {pipelines.map((item: any) => (
         <div key={item.group_name} className="mb-4 mt-4">
           <div className="text-lg font-bold pt-2 pb-2 pl-4 pr-4 bg-[#E8EEF0] text-[#3F82C9] rounded-t-md">
@@ -122,7 +138,7 @@ export default function Pipeline() {
                           <DeleteOutlined key={"setting"} />
                         </Popconfirm>,
                       ]}
-                      style={{ width: '100%' }}
+                      style={{ width: "100%" }}
                     >
                       <div className="text-[12px]">Tag：{item.last_tag}</div>
                       <div className="text-[12px]">

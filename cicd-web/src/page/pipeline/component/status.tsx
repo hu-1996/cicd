@@ -2,28 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Tooltip, Button, message } from "antd";
 import { ForwardOutlined } from "@ant-design/icons";
 import { fetchRequest } from "../../../utils/fetch";
-
-const colors: any = {
-  failed: "#ea5506",
-  success: "#50d71e",
-  running: "#0095d9",
-  pending: "#afafb0",
-  queueing: "#a0d8ef",
-  partial_running: "#89c3eb",
-  partial_success: "#98d98e",
-  canceled: "#afafb0",
-};
-
-const status: any = {
-  failed: "✗",
-  success: "✔️",
-  running: "🚀",
-  pending: "🧘‍♂️",
-  queueing: "☕️",
-  partial_running: "...🚀",
-  partial_success: "...✔️",
-  canceled: "🚫",
-};
+import { colors, status } from "../../../config/consts";
 
 export default function Status(props: any) {
   const { steps } = props;
