@@ -1,11 +1,25 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { FormProps } from "antd";
-import { Button, Form, Input, Typography, Space, message, Switch } from "antd";
+import {
+  Button,
+  Form,
+  Input,
+  Typography,
+  Space,
+  message,
+  Switch,
+  Select,
+} from "antd";
 import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
 import { fetchRequest } from "../../utils/fetch";
 
 const { Title } = Typography;
+
+interface Role {
+  id: number;
+  name: string;
+}
 
 export default function NewPipeline() {
   const navigate = useNavigate();
@@ -15,10 +29,18 @@ export default function NewPipeline() {
   const [testGitLoading, setTestGitLoading] = useState(false);
   const [errMsg, setErrMsg] = useState<string>("");
   const [testGitSuccess, setTestGitSuccess] = useState(false);
+  const [roleData, setRoleData] = useState<Role[]>([]);
+
+  const userinfo = JSON.parse(localStorage.getItem("userinfo") || "{}");
 
   useEffect(() => {
     if (pipelineId) {
       loadPipelineDetail();
+    }
+    console.log(userinfo);
+    
+    if (userinfo.is_admin) {
+      loadRoleData();
     }
   }, [pipelineId]);
 
@@ -69,6 +91,11 @@ export default function NewPipeline() {
       method: "GET",
     });
     form.setFieldsValue(res);
+  };
+
+  const loadRoleData = async () => {
+    const data = await fetchRequest(`/api/list_role`);
+    setRoleData(data.list);
   };
 
   const testGit = async () => {
@@ -172,6 +199,25 @@ export default function NewPipeline() {
           </Form.List>
         </Form.Item>
 
+        {userinfo.is_admin && (
+          <Form.Item
+            label="绑定角色"
+            name="roles"
+            rules={[{ required: true, message: "请输入角色" }]}
+          >
+            <Select
+              mode="multiple"
+              style={{ width: "100%" }}
+              placeholder="请选择角色"
+              options={roleData.map((role) => ({
+                key: role.id,
+                value: role.id,
+                label: role.name,
+              }))}
+            />
+          </Form.Item>
+        )}
+
         <Form.Item label="使用Git" name="use_git" valuePropName="checked">
           <Switch />
         </Form.Item>
@@ -201,17 +247,11 @@ export default function NewPipeline() {
                   <Input placeholder="请输入分支" />
                 </Form.Item>
 
-                <Form.Item
-                  label="用户名"
-                  name="username"
-                >
+                <Form.Item label="用户名" name="username">
                   <Input placeholder="请输入用户名" />
                 </Form.Item>
 
-                <Form.Item
-                  label="密码"
-                  name="password"
-                >
+                <Form.Item label="密码" name="password">
                   <Input placeholder="请输入密码" />
                 </Form.Item>
                 <Form.Item label={null}>
@@ -219,7 +259,9 @@ export default function NewPipeline() {
                     测试连接
                   </Button>
                   {errMsg && <div className="text-red-500">{errMsg}</div>}
-                  {testGitSuccess && <div className="text-green-500">连接成功</div>}
+                  {testGitSuccess && (
+                    <div className="text-green-500">连接成功</div>
+                  )}
                 </Form.Item>
               </>
             )

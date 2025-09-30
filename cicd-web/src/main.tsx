@@ -11,6 +11,8 @@ import Logs from "./page/pipeline/logs.tsx";
 import Runner from "./page/runner/index.tsx";
 import Layout from "./layout.tsx";
 import Login from "./page/login.tsx";
+import User from "./page/user/index.tsx";
+import Profile from "./page/user/profile.tsx";
 import "antd/dist/reset.css";
 import "./index.css";
 
@@ -29,6 +31,8 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/history" element={<History />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/runner" element={<Runner />} />
+          <Route path="/user" element={<User />} />
+          <Route path="/profile" element={<Profile />} />
         </Route>
       </Routes>
     </BrowserRouter>

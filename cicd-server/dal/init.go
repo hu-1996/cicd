@@ -21,7 +21,8 @@ func Init() {
 func initUser() {
 	user := User{
 		Username: "admin",
-		Password: "admin",
+		Password: "bizyair@123",
+		Nickname: "admin",
 	}
 	username := os.Getenv("CICD_ADMIN_USERNAME")
 	if username != "" {
@@ -31,7 +32,7 @@ func initUser() {
 	if password != "" {
 		user.Password = password
 	}
-	if err := user.Create(); err != nil {
+	if err := user.CreateAdmin(); err != nil {
 		log.Fatalf("create user error: %s", err)
 	}
 }
@@ -45,7 +46,19 @@ func initSqlite() *gorm.DB {
 		log.Fatalf("gorm open database error: %s", err)
 	}
 
-	if err = DB.AutoMigrate(&Pipeline{}, &Step{}, &Job{}, &JobRunner{}, &Runner{}, &RunnerLabel{}, &Git{}, &User{}); err != nil {
+	if err = DB.AutoMigrate(
+		&Pipeline{},
+		&Step{},
+		&Job{},
+		&JobRunner{},
+		&Runner{},
+		&RunnerLabel{},
+		&Git{},
+		&User{},
+		&Role{},
+		&UserRole{},
+		&PipelineRole{},
+	); err != nil {
 		panic(err)
 	}
 

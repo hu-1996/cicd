@@ -11,6 +11,16 @@ const App: React.FC = () => {
   };
 
   const [user, setUser] = useState<any>(null);
+  const [items, setItems] = useState<any[]>([
+    {
+      key: "pipeline",
+      label: "pipeline",
+    },
+    {
+      key: "runner",
+      label: "执行机器",
+    },
+  ]);
 
   useEffect(() => {
     if (location.pathname === "/") {
@@ -27,7 +37,10 @@ const App: React.FC = () => {
       method: "GET",
     });
     setUser(res);
-    localStorage.setItem("userInfo", JSON.stringify(res));
+    localStorage.setItem("userinfo", JSON.stringify(res));
+    if (res.is_admin) {
+      setItems([...items, { key: "user", label: "用户" }]);
+    }
   };
 
   const redirectPipeline = () => {
@@ -36,9 +49,10 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-    localStorage.removeItem("userInfo");
+    localStorage.removeItem("userinfo");
     navigate("/login");
   };
+
 
   return (
     <Layout>
@@ -53,16 +67,7 @@ const App: React.FC = () => {
           mode="horizontal"
           defaultSelectedKeys={[window.location.pathname.split("/")[1]]}
           onClick={handleMenuClick}
-          items={[
-            {
-              key: "pipeline",
-              label: "pipeline",
-            },
-            {
-              key: "runner",
-              label: "执行机器",
-            },
-          ]}
+          items={items}
           style={{ flex: 1, minWidth: 0 }}
         />
         <Space>
@@ -70,7 +75,14 @@ const App: React.FC = () => {
             menu={{
               items: [
                 {
-                  key: "1",
+                  key: "profile",
+                  label: <a onClick={() => navigate("/profile")}>个人中心</a>,
+                },
+                {
+                  type: 'divider',
+                },
+                {
+                  key: "logout",
                   label: <a onClick={handleLogout}>退出登录</a>,
                 },
               ],
@@ -80,7 +92,7 @@ const App: React.FC = () => {
               src={user?.avatar}
               style={{ backgroundColor: "#743aed", position: "relative" }}
             >
-              {user?.username.slice(0, 1)}
+              {user?.nickname.slice(0, 1)}
             </Avatar>
           </Dropdown>
         </Space>

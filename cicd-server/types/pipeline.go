@@ -11,6 +11,7 @@ type CreatePipelineReq struct {
 	Username    string `json:"username"`
 	Password    string `json:"password"`
 	Sort        int    `json:"sort"`
+	Roles       []uint `json:"roles"`
 }
 
 type Envs []Env
@@ -32,6 +33,7 @@ type UpdatePipelineReq struct {
 	Username    string `json:"username"`
 	Password    string `json:"password"`
 	Sort        int    `json:"sort"`
+	Roles       []uint `json:"roles"`
 }
 
 type PathPipelineReq struct {
@@ -54,6 +56,7 @@ type PipelineResp struct {
 	Password     string     `json:"password"`
 	GroupName    string     `json:"group_name"`
 	Sort         int        `json:"sort"`
+	Roles        []uint     `json:"roles"`
 }
 
 type PipelineGroupResp struct {

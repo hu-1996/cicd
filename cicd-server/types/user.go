@@ -1,8 +1,35 @@
 package types
 
-type User struct {
+type UserReq struct {
 	ID       uint   `path:"id" json:"id"`
 	Username string `json:"username"`
+	Password string `json:"password"`
+	Nickname string `json:"nickname"`
+	Roles    []uint `json:"roles"`
+}
+
+type UpdateUserReq struct {
+	ID       uint   `path:"id" json:"id"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Nickname string `json:"nickname"`
+	Roles    []uint `json:"roles"`
+}
+
+type UserResp struct {
+	ID        uint   `path:"id" json:"id"`
+	Username  string `json:"username"`
+	Nickname  string `json:"nickname"`
+	Roles     []uint `json:"roles"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	IsAdmin   bool   `json:"is_admin"`
+}
+
+type ListUserReq struct {
+	Nickname string `query:"nickname"`
+	Page     int    `query:"page"`
+	PageSize int    `query:"page_size"`
 }
 
 type LoginUser struct {
@@ -11,5 +38,5 @@ type LoginUser struct {
 }
 
 type UserPathReq struct {
-	Id string `path:"id" vd:"len($)>0"`
+	Id uint `path:"id" vd:"$>0"`
 }

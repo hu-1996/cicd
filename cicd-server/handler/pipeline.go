@@ -7,6 +7,7 @@ import (
 
 	"cicd-server/dal"
 	"cicd-server/types"
+	cutils "cicd-server/utils"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -16,8 +17,27 @@ import (
 )
 
 func ListPipeline(ctx context.Context, c *app.RequestContext) {
+	user, err := cutils.LoginUser(ctx, c)
+	if err != nil {
+		c.JSON(consts.StatusUnauthorized, utils.H{"error": err.Error()})
+		return
+	}
+
+	var userRoles []dal.UserRole
+	if err := dal.DB.Where("user_id = ?", user.Id).Find(&userRoles).Error; err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+	}
+
+	db := dal.DB
+	if !user.IsAdmin {
+		if len(userRoles) == 0 {
+			c.JSON(consts.StatusOK, nil)
+			return
+		}
+		db = db.Where("id IN (?)", dal.DB.Model(&dal.PipelineRole{}).Select("pipeline_id").Where("pipeline_roles.role_id IN ?", lo.Map(userRoles, func(item dal.UserRole, _ int) uint { return item.RoleID })))
+	}
 	var pipelines []dal.Pipeline
-	if err := dal.DB.Order("sort ASC, id ASC").Find(&pipelines).Error; err != nil {
+	if err := db.Order("sort ASC, id ASC").Find(&pipelines).Error; err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 	}
 
@@ -58,6 +78,12 @@ func PipelineDetail(ctx context.Context, c *app.RequestContext) {
 }
 
 func CreatePipeline(ctx context.Context, c *app.RequestContext) {
+	user, err := cutils.LoginUser(ctx, c)
+	if err != nil {
+		c.JSON(consts.StatusUnauthorized, utils.H{"error": err.Error()})
+		return
+	}
+
 	var pipeline types.CreatePipelineReq
 	if err := c.BindAndValidate(&pipeline); err != nil {
 		c.JSON(consts.StatusBadRequest, utils.H{"error": err.Error()})
@@ -73,6 +99,15 @@ func CreatePipeline(ctx context.Context, c *app.RequestContext) {
 	if count > 0 {
 		c.JSON(consts.StatusBadRequest, utils.H{"error": "pipeline name already exists"})
 		return
+	}
+
+	if len(pipeline.Roles) == 0 {
+		var userRoles []dal.UserRole
+		if err := dal.DB.Where("user_id = ?", user.Id).Find(&userRoles).Error; err != nil {
+			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+			return
+		}
+		pipeline.Roles = lo.Map(userRoles, func(item dal.UserRole, _ int) uint { return item.RoleID })
 	}
 
 	p := dal.Pipeline{
@@ -94,6 +129,14 @@ func CreatePipeline(ctx context.Context, c *app.RequestContext) {
 		if err := tx.Create(&p).Error; err != nil {
 			return err
 		}
+
+		for _, roleID := range pipeline.Roles {
+			pipelineRole := dal.PipelineRole{PipelineID: p.ID, RoleID: roleID}
+			if err := tx.Create(&pipelineRole).Error; err != nil {
+				return err
+			}
+		}
+
 		if pipeline.UseGit {
 			git := dal.Git{
 				PipelineID: p.ID,
@@ -207,6 +250,19 @@ func UpdatePipeline(ctx context.Context, c *app.RequestContext) {
 			return err
 		}
 
+		if len(pipeline.Roles) > 0 {
+			if err := tx.Delete(&dal.PipelineRole{}, "pipeline_id = ?", p.ID).Error; err != nil {
+				return err
+			}
+
+			for _, roleID := range pipeline.Roles {
+				pipelineRole := dal.PipelineRole{PipelineID: p.ID, RoleID: roleID}
+				if err := tx.Create(&pipelineRole).Error; err != nil {
+					return err
+				}
+			}
+		}
+
 		if pipeline.UseGit {
 			git := dal.Git{
 				PipelineID: p.ID,
@@ -269,6 +325,18 @@ func CopyPipeline(ctx context.Context, c *app.RequestContext) {
 		newP.Sort = p.Sort + 1
 		if err := tx.Create(&newP).Error; err != nil {
 			return err
+		}
+
+		var pipelineRoles []dal.PipelineRole
+		if err := tx.Find(&pipelineRoles, "pipeline_id = ?", p.ID).Error; err != nil {
+			return err
+		}
+		for _, role := range pipelineRoles {
+			role.ID = 0
+			role.PipelineID = newP.ID
+			if err := tx.Create(&role).Error; err != nil {
+				return err
+			}
 		}
 
 		if p.UseGit {

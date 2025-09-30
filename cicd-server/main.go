@@ -40,6 +40,15 @@ func main() {
 
 	h.Use(mws()...)
 	h.GET("/api/userinfo", handler.UserInfo)
+	h.POST("/api/create_user", handler.CreateUser)
+	h.PUT("/api/update_user/:id", handler.UpdateUser)
+	h.DELETE("/api/delete_user/:id", handler.DeleteUser)
+	h.PUT("/api/reset_password/:id", handler.ResetPassword)
+	h.GET("/api/list_user", handler.ListUser)
+
+	h.POST("/api/create_role", handler.CreateRole)
+	h.DELETE("/api/delete_role/:id", handler.DeleteRole)
+	h.GET("/api/list_role", handler.ListRole)
 
 	h.GET("/api/list_runner", handler.ListRunner)
 	h.PUT("/api/enable_runner/:id", handler.EnableRunner)

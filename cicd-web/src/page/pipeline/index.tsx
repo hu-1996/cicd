@@ -79,7 +79,7 @@ export default function Pipeline() {
       </Space>
       <Space className="float-right">
         {Object.entries(status).map((item: any) => (
-          <Space>
+          <Space key={item[0]}>
             <div
               className="h-[16px] w-[40px] bg-[#afafb0] text-center leading-[16px] cursor-pointer"
               style={{

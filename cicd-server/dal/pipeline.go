@@ -67,6 +67,12 @@ func (p *Pipeline) Format() types.PipelineResp {
 		Sort:         p.Sort,
 	}
 
+	var pipelineRoles []PipelineRole
+	DB.Find(&pipelineRoles, "pipeline_id = ?", p.ID)
+	if len(pipelineRoles) > 0 {
+		pipeline.Roles = lo.Map(pipelineRoles, func(v PipelineRole, _ int) uint { return v.RoleID })
+	}
+
 	var git Git
 	if err := DB.Last(&git, "pipeline_id = ?", p.ID).Error; err == nil {
 		pipeline.UseGit = true
@@ -117,6 +123,12 @@ func (p *Pipeline) ListFormat() types.PipelineResp {
 		Sort:         p.Sort,
 	}
 
+	var pipelineRoles []PipelineRole
+	DB.Find(&pipelineRoles, "pipeline_id = ?", p.ID)
+	if len(pipelineRoles) > 0 {
+		pipeline.Roles = lo.Map(pipelineRoles, func(v PipelineRole, _ int) uint { return v.RoleID })
+	}
+
 	var git Git
 	if err := DB.Last(&git, "pipeline_id = ?", p.ID).Error; err == nil {
 		pipeline.UseGit = true
@@ -163,4 +175,10 @@ func (p *Pipeline) ListFormat() types.PipelineResp {
 	pipeline.Steps = stepsResp
 
 	return pipeline
+}
+
+type PipelineRole struct {
+	gorm.Model
+	PipelineID uint
+	RoleID     uint
 }

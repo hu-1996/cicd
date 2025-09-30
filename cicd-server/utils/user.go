@@ -13,6 +13,8 @@ import (
 type User struct {
 	Id       uint   `json:"id"`
 	Username string `json:"username"`
+	Nickname string `json:"nickname"`
+	IsAdmin  bool   `json:"is_admin"`
 }
 
 func LoginUser(ctx context.Context, c *app.RequestContext) (*User, error) {
