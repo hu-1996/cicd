@@ -21,6 +21,7 @@ type JobRunner struct {
 	Trigger         Trigger
 	StartTime       time.Time
 	EndTime         time.Time
+	TriggerUserId   uint
 }
 
 type Status string

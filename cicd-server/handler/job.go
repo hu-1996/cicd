@@ -17,6 +17,7 @@ import (
 	gitutils "cicd-server/git"
 	jobexec "cicd-server/job_exec"
 	"cicd-server/types"
+	cutils "cicd-server/utils"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
@@ -63,6 +64,12 @@ func PipelineJobs(ctx context.Context, c *app.RequestContext) {
 }
 
 func StartJob(ctx context.Context, c *app.RequestContext) {
+	user, err := cutils.LoginUser(ctx, c)
+	if err != nil {
+		c.JSON(consts.StatusUnauthorized, utils.H{"error": err.Error()})
+		return
+	}
+
 	var job types.StartJobReq
 	if err := c.BindAndValidate(&job); err != nil {
 		c.JSON(consts.StatusBadRequest, utils.H{"error": err.Error()})
@@ -145,12 +152,13 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 
 		for i, step := range steps {
 			runner := dal.JobRunner{
-				JobID:    j.ID,
-				StepID:   step.ID,
-				StepSort: step.Sort,
-				Status:   lo.Ternary(i == 0, dal.Queueing, dal.Pending),
-				Trigger:  step.Trigger,
-				Commands: step.Commands,
+				JobID:         j.ID,
+				StepID:        step.ID,
+				StepSort:      step.Sort,
+				Status:        lo.Ternary(i == 0, dal.Queueing, dal.Pending),
+				Trigger:       step.Trigger,
+				Commands:      step.Commands,
+				TriggerUserId: user.Id,
 			}
 			if err := tx.Create(&runner).Error; err != nil {
 				return err
@@ -193,6 +201,12 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 }
 
 func StartJobStep(ctx context.Context, c *app.RequestContext) {
+	user, err := cutils.LoginUser(ctx, c)
+	if err != nil {
+		c.JSON(consts.StatusUnauthorized, utils.H{"error": err.Error()})
+		return
+	}
+
 	var job types.StartStepReq
 	if err := c.BindAndValidate(&job); err != nil {
 		c.JSON(consts.StatusBadRequest, utils.H{"error": err.Error()})
@@ -226,6 +240,7 @@ func StartJobStep(ctx context.Context, c *app.RequestContext) {
 			jobRunner.AssignRunnerIds = []uint{}
 			jobRunner.EventStatus = map[dal.Status]int{}
 			jobRunner.Trigger = dal.TriggerManual
+			jobRunner.TriggerUserId = user.Id
 			if err := tx.Create(&jobRunner).Error; err != nil {
 				return err
 			}
@@ -304,13 +319,21 @@ func JobRunnerDetail(ctx context.Context, c *app.RequestContext) {
 	var jr types.JobRunner
 	if err := dal.DB.Find(&jobRunners, "job_id = ? AND step_id = ?", jobRunner.JobID, jobRunner.StepID).Error; err == nil {
 		for _, jobRunner := range jobRunners {
+
 			rs := types.JobRunner{
-				LastRunnerID: jobRunner.ID,
-				LastStatus:   string(jobRunner.Status),
-				StartTime:    lo.Ternary(jobRunner.StartTime.IsZero(), "-", jobRunner.StartTime.Format("2006-01-02 15:04:05")),
-				EndTime:      lo.Ternary(jobRunner.EndTime.IsZero(), "-", jobRunner.EndTime.Format("2006-01-02 15:04:05")),
-				Cost:         lo.Ternary(jobRunner.EndTime.IsZero(), "-", jobRunner.EndTime.Sub(jobRunner.StartTime).String()),
-				Message:      jobRunner.Message,
+				LastRunnerID:  jobRunner.ID,
+				LastStatus:    string(jobRunner.Status),
+				StartTime:     lo.Ternary(jobRunner.StartTime.IsZero(), "-", jobRunner.StartTime.Format("2006-01-02 15:04:05")),
+				EndTime:       lo.Ternary(jobRunner.EndTime.IsZero(), "-", jobRunner.EndTime.Format("2006-01-02 15:04:05")),
+				Cost:          lo.Ternary(jobRunner.EndTime.IsZero(), "-", jobRunner.EndTime.Sub(jobRunner.StartTime).String()),
+				Message:       jobRunner.Message,
+				TriggerUserId: jobRunner.TriggerUserId,
+			}
+			if jobRunner.TriggerUserId > 0 {
+				var user dal.User
+				if err := dal.DB.Last(&user, "id = ?", jobRunner.TriggerUserId).Error; err == nil {
+					rs.TriggerUser = user.Nickname
+				}
 			}
 			if s, ok := stepBy[jobRunner.StepID]; ok {
 				rs.StepName = s.Name

@@ -69,16 +69,21 @@ export default function Logs() {
       },
       {
         key: "3",
+        label: "触发人",
+        children: res?.job_runner?.trigger_user || "-",
+      },
+      {
+        key: "4",
         label: "耗时",
         children: res?.job_runner?.cost,
       },
       {
-        key: "4",
+        key: "5",
         label: "调度时间",
         children: res?.job_runner?.start_time,
       },
       {
-        key: "5",
+        key: "6",
         label: "完成时间",
         children: res?.job_runner?.end_time,
       },
@@ -155,7 +160,7 @@ export default function Logs() {
               取消执行
             </Button>
             <Typography.Text type="secondary">
-              为了保证任务的原子性，无法做到执行中的任务取消执行，也无法保证能否取消成功，具体是否执行请查看执行日志
+              无法保证能否取消成功，具体是否执行请查看执行日志
             </Typography.Text>
           </>
         )}

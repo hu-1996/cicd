@@ -36,6 +36,8 @@ type JobRunner struct {
 	Cost          string       `json:"cost"`
 	Message       string       `json:"message"`
 	AssignRunners []RunnerResp `json:"assign_runners"`
+	TriggerUserId uint         `json:"trigger_user_id"`
+	TriggerUser   string       `json:"trigger_user"`
 }
 
 type PathJobRunnerReq struct {
