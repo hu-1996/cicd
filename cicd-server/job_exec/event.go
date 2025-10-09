@@ -123,7 +123,7 @@ func StartNextStep(jobRunnerID uint) bool {
 	return false
 }
 
-func StartOtherStep(assignRunnerIds dal.AssignRunnerIds) {
+func StartOtherStep(assignRunnerIds []uint) {
 	if len(assignRunnerIds) == 0 {
 		return
 	}
@@ -135,6 +135,20 @@ func StartOtherStep(assignRunnerIds dal.AssignRunnerIds) {
 
 	if len(jobRunners) == 0 {
 		return
+	}
+
+	var runnerLabels []dal.RunnerLabel
+	if err := dal.DB.Find(&runnerLabels, "runner_id IN (?)", assignRunnerIds).Error; err != nil {
+		return
+	}
+
+	if len(runnerLabels) == 0 {
+		return
+	}
+
+	rlm := make(map[string]uint)
+	for _, label := range runnerLabels {
+		rlm[label.Label] = label.RunnerID
 	}
 
 	var steps []dal.Step
@@ -149,46 +163,38 @@ func StartOtherStep(assignRunnerIds dal.AssignRunnerIds) {
 		return
 	}
 
-	var runnerLabels []dal.RunnerLabel
-	if err := dal.DB.Find(&runnerLabels, "label IN (?)", lo.Map(steps, func(item dal.Step, _ int) string {
-		return item.RunnerLabelMatch
-	})).Error; err != nil {
-		hlog.Errorf("get runners error: %s", err)
-		return
-	}
+	stepMap := lo.Associate(steps, func(item dal.Step) (uint, dal.Step) {
+		return item.ID, item
+	})
 
-	if len(runnerLabels) == 0 {
-		return
-	}
-
-	var runableJobRunners []dal.JobRunner
-	for _, runnerId := range assignRunnerIds {
-		for _, runnerLabel := range runnerLabels {
-			if runnerLabel.RunnerID == runnerId {
-				runableJobRunners = append(runableJobRunners, jobRunners...)
+	usedAssignRunnerIds := make(map[uint]struct{}, len(assignRunnerIds))
+	for _, jobRunner := range jobRunners {
+		step, ok := stepMap[jobRunner.StepID]
+		if !ok {
+			continue
+		}
+		if runnerId, ok := rlm[step.RunnerLabelMatch]; ok {
+			if _, ok := usedAssignRunnerIds[runnerId]; ok {
+				continue
 			}
-		}
-	}
 
-	if len(runableJobRunners) == 0 {
-		return
-	}
-
-	for _, jobRunner := range runableJobRunners {
-		var job dal.Job
-		if err := dal.DB.Last(&job, "id = ?", jobRunner.JobID).Error; err != nil {
-			return
-		}
-
-		var git dal.Git
-		if err := dal.DB.Last(&git, "pipeline_id = ?", job.PipelineID).Error; err != nil {
-			if err != gorm.ErrRecordNotFound {
+			var job dal.Job
+			if err := dal.DB.Last(&job, "id = ?", jobRunner.JobID).Error; err != nil {
 				return
 			}
-		} else {
-			git.CommitID = job.CommitID
-			git.Branch = job.Branch
+
+			var git dal.Git
+			if err := dal.DB.Last(&git, "pipeline_id = ?", job.PipelineID).Error; err != nil {
+				if err != gorm.ErrRecordNotFound {
+					return
+				}
+			} else {
+				git.CommitID = job.CommitID
+				git.Branch = job.Branch
+			}
+			usedAssignRunnerIds[runnerId] = struct{}{}
+			NewJobExec(job, jobRunner, git).AddJob()
+			break
 		}
-		NewJobExec(job, jobRunner, git).AddJob()
 	}
 }
