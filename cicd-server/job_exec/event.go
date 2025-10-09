@@ -1,6 +1,7 @@
 package jobexec
 
 import (
+	"errors"
 	"time"
 
 	"cicd-server/dal"
@@ -91,8 +92,15 @@ func StartNextStep(jobRunnerID uint) bool {
 		return false
 	}
 
+	tempJobRunnerID := jobRunnerID
+	var oldRunner dal.JobRunner
+	if err := dal.DB.First(&oldRunner, "job_id = ? AND step_id = ?", jobRunner.JobID, jobRunner.StepID).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return false
+	}
+	tempJobRunnerID = oldRunner.ID
+
 	var runners []dal.JobRunner
-	if err := dal.DB.Find(&runners, "job_id = ? AND status = ? AND id > ?", job.ID, dal.Pending, jobRunnerID).Error; err != nil {
+	if err := dal.DB.Find(&runners, "job_id = ? AND status = ? AND id > ?", job.ID, dal.Pending, tempJobRunnerID).Error; err != nil {
 		return false
 	}
 	if len(runners) > 0 {
