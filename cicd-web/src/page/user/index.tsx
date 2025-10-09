@@ -19,6 +19,8 @@ interface User {
   username: string;
   nickname: string;
   roles: number[];
+  password: string;
+  password2: string;
 }
 
 interface Role {
@@ -221,6 +223,10 @@ const IndexUser: React.FC = () => {
   };
 
   const onChangePassword = async (values: User) => {
+    if (values.password !== values.password2) {
+      message.error("两次密码不一致");
+      return;
+    }
     await fetchRequest(`/api/reset_password/${formUser?.id}`, {
       method: "PUT",
       body: JSON.stringify(values),
@@ -300,7 +306,7 @@ const IndexUser: React.FC = () => {
             </Form.Item>
             {!formUser && (
               <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}>
-                <Input.Password placeholder="请输入密码" />
+                <Input.Password placeholder="请输入密码" minLength={8}/>
               </Form.Item>
             )}
             <Form.Item name="roles" label="角色" rules={[{ required: true, message: "请选择角色" }]}>
@@ -338,10 +344,10 @@ const IndexUser: React.FC = () => {
             )}
           >
             <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}>
-              <Input.Password placeholder="请输入密码" />
+              <Input.Password placeholder="请输入密码" minLength={8}/>
             </Form.Item>
             <Form.Item name="password2" label="确认密码" rules={[{ required: true, message: "请输入确认密码" }]}>
-              <Input.Password placeholder="请输入密码" />
+              <Input.Password placeholder="请输入密码" minLength={8}/>
             </Form.Item>
           </Modal>
         </>

@@ -60,6 +60,7 @@ const App: React.FC = () => {
         style={{
           display: "flex",
           alignItems: "center",
+          
         }}
       >
         <Menu
