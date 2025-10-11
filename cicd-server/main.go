@@ -68,7 +68,11 @@ func main() {
 	h.POST("/api/create_step", handler.CreateStep)
 	h.PUT("/api/update_step/:id", handler.UpdateStep)
 	h.DELETE("/api/delete_step/:id", handler.DeleteStep)
-	h.POST("/api/sort_step/:pipeline_id", handler.SortStep)
+
+	h.GET("/api/stage/:id", handler.StageDetail)
+	h.POST("/api/create_stage", handler.CreateStage)
+	h.PUT("/api/update_stage/:id", handler.UpdateStage)
+	h.DELETE("/api/delete_stage/:id", handler.DeleteStage)
 
 	h.GET("/api/list_pipeline", handler.ListPipeline)
 	h.POST("/api/sort_pipeline", handler.SortPipeline)
@@ -77,6 +81,7 @@ func main() {
 	h.PUT("/api/update_pipeline/:id", handler.UpdatePipeline)
 	h.DELETE("/api/delete_pipeline/:id", handler.DeletePipeline)
 	h.POST("/api/copy_pipeline/:id", handler.CopyPipeline)
+	h.POST("/api/sort_stage_and_step/:pipeline_id", handler.SortStageAndStep)
 
 	h.POST("/api/test_git", handler.TestGit)
 

@@ -11,6 +11,7 @@ import (
 type JobRunner struct {
 	gorm.Model
 	JobID           uint
+	StageID         uint
 	StepID          uint
 	StepSort        int
 	Commands        ListString
@@ -22,6 +23,7 @@ type JobRunner struct {
 	StartTime       time.Time
 	EndTime         time.Time
 	TriggerUserId   uint
+	Parallel        bool
 }
 
 type Status string

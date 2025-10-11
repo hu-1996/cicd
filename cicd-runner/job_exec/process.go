@@ -113,7 +113,7 @@ func Run(n, su string) {
 	go handleLog()
 
 	for job := range jobChan {
-		job.Exec()
+		go job.Exec()
 	}
 }
 

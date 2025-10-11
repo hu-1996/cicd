@@ -13,6 +13,7 @@ import Layout from "./layout.tsx";
 import Login from "./page/login.tsx";
 import User from "./page/user/index.tsx";
 import Profile from "./page/user/profile.tsx";
+import CreateStage from "./page/pipeline/create_stage.tsx";
 import "antd/dist/reset.css";
 import "./index.css";
 
@@ -27,6 +28,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/new_pipeline" element={<NewPipeline />}>
             <Route path="pipeline" element={<CreatePipeline />} />
             <Route path="step" element={<CreateStep />} />
+            <Route path="stage" element={<CreateStage />} />
           </Route>
           <Route path="/history" element={<History />} />
           <Route path="/logs" element={<Logs />} />

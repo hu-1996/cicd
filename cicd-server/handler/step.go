@@ -8,7 +8,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"gorm.io/gorm"
 )
 
 func ListStep(ctx context.Context, c *app.RequestContext) {
@@ -54,8 +53,10 @@ func CreateStep(ctx context.Context, c *app.RequestContext) {
 
 	var s dal.Step
 	s.PipelineID = step.PipelineID
+	if step.StageID > 0 {
+		s.StageID = step.StageID
+	}
 	s.Name = step.Name
-
 	s.Commands = step.Commands
 	s.Trigger = dal.Trigger(step.Trigger)
 	s.RunnerLabelMatch = step.RunnerLabelMatch
@@ -112,8 +113,10 @@ func UpdateStep(ctx context.Context, c *app.RequestContext) {
 
 	s.ID = step.ID
 	s.PipelineID = step.PipelineID
+	if step.StageID > 0 {
+		s.StageID = step.StageID
+	}
 	s.Name = step.Name
-
 	s.Commands = step.Commands
 	s.Trigger = dal.Trigger(step.Trigger)
 	s.RunnerLabelMatch = step.RunnerLabelMatch
@@ -123,26 +126,4 @@ func UpdateStep(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	c.JSON(consts.StatusOK, s.Format())
-}
-
-func SortStep(ctx context.Context, c *app.RequestContext) {
-	var step types.SortStepReq
-	if err := c.BindAndValidate(&step); err != nil {
-		c.JSON(consts.StatusBadRequest, utils.H{"error": err.Error()})
-		return
-	}
-
-	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
-		for i, id := range step.StepIDs {
-			if err := tx.Model(&dal.Step{}).Where("id = ?", id).Update("sort", i).Error; err != nil {
-				c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
-				return err
-			}
-		}
-		return nil
-	}); err != nil {
-		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
-		return
-	}
-	c.JSON(consts.StatusOK, utils.H{"data": "success"})
 }

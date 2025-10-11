@@ -8,13 +8,15 @@ import (
 
 type Runner struct {
 	gorm.Model
-	Name         string
-	Endpoint     string
-	Status       RunnerStatus
-	Message      string
-	PipelineID   uint
-	PipelineName string
-	Enable       bool `gorm:"default:1"`
+	Name          string
+	Endpoint      string
+	Status        RunnerStatus
+	Message       string
+	PipelineID    uint
+	PipelineName  string
+	Enable        bool `gorm:"default:1"`
+	StageID       uint
+	StageParallel bool
 }
 
 type RunnerStatus string

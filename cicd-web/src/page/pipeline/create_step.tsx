@@ -19,12 +19,13 @@ import { fetchRequest } from "../../utils/fetch";
 
 const { Title } = Typography;
 
-export default function NewPipeline() {
+export default function NewStep() {
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const [searchParams] = useSearchParams();
 
   const pipelineId = searchParams.get("id");
+  const stageId = searchParams.get("stage_id");
   const stepId = searchParams.get("step_id");
 
   const [runnerLabels, setRunnerLabels] = useState<string[]>([]);
@@ -43,6 +44,7 @@ export default function NewPipeline() {
 
   type FieldType = {
     pipeline_id: number;
+    stage_id: number;
     commands: string[];
     name: string;
     tag_template: string;
@@ -63,7 +65,7 @@ export default function NewPipeline() {
     }
     values.pipeline_id = Number(pipelineId);
     values.trigger = values.trigger_policy ? "auto" : "manual";
-    if (searchParams.get("step_id")) {
+    if (stepId) {
       await fetchRequest("/api/update_step/" + stepId, {
         method: "PUT",
         body: JSON.stringify(values),
@@ -72,6 +74,9 @@ export default function NewPipeline() {
       location.reload();
       return;
     }
+    if (stageId) {
+      values.stage_id = Number(stageId);
+    }
     const res = await fetchRequest("/api/create_step", {
       method: "POST",
       body: JSON.stringify(values),
@@ -79,7 +84,7 @@ export default function NewPipeline() {
     message.success("创建成功");
     form.resetFields();
     navigate(
-      "/new_pipeline/step?id=" + searchParams.get("id") + "&step_id=" + res.id
+      "/new_pipeline/step?id=" + pipelineId + "&step_id=" + res.id
     );
   };
 
@@ -109,12 +114,12 @@ export default function NewPipeline() {
       method: "DELETE",
     });
     message.success("删除成功");
-    navigate("/new_pipeline/step?id=" + searchParams.get("id"));
+    navigate("/new_pipeline/pipeline?id=" + pipelineId);
   };
 
   return (
     <div className="w-full bg-white ml-2 p-5">
-      <Title level={4}>{pipelineId ? "更新" : "新建"} Step</Title>
+      <Title level={4}>{stepId ? "更新" : "新建"} Step</Title>
       <Form
         name="basic"
         labelCol={{ span: 6 }}
@@ -195,16 +200,6 @@ export default function NewPipeline() {
             </Button>
             {stepId && (
               <>
-                <Button
-                  color="default"
-                  variant="solid"
-                  onClick={() => {
-                    form.resetFields();
-                    navigate("/new_pipeline/step?id=" + searchParams.get("id"));
-                  }}
-                >
-                  创建Step
-                </Button>
                 <Popconfirm
                   title="提示"
                   description={`是否删除?`}

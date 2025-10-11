@@ -370,3 +370,29 @@ func CopyPipeline(ctx context.Context, c *app.RequestContext) {
 	}
 	c.JSON(consts.StatusOK, utils.H{"data": "success"})
 }
+
+func SortStageAndStep(ctx context.Context, c *app.RequestContext) {
+	var req types.SortStageAndStepReq
+	if err := c.BindAndValidate(&req); err != nil {
+		c.JSON(consts.StatusBadRequest, utils.H{"error": err.Error()})
+		return
+	}
+
+	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
+		for _, s := range req.Stages {
+			if err := tx.Model(&dal.Stage{}).Where("id = ?", s.ID).Update("sort", s.Sort).Error; err != nil {
+				return err
+			}
+		}
+		for _, s := range req.Steps {
+			if err := tx.Model(&dal.Step{}).Where("id = ?", s.ID).Update("sort", s.Sort).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+		return
+	}
+	c.JSON(consts.StatusOK, utils.H{"data": "success"})
+}

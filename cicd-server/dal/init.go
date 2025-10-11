@@ -40,7 +40,7 @@ func initUser() {
 func initSqlite() *gorm.DB {
 	var err error
 	DB, err := gorm.Open(sqlite.Open("cicd.db"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
 		log.Fatalf("gorm open database error: %s", err)
@@ -58,6 +58,7 @@ func initSqlite() *gorm.DB {
 		&Role{},
 		&UserRole{},
 		&PipelineRole{},
+		&Stage{},
 	); err != nil {
 		panic(err)
 	}

@@ -3,6 +3,7 @@ package dal
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"sort"
 
 	"cicd-server/types"
 
@@ -87,17 +88,48 @@ func (p *Pipeline) Format() types.PipelineResp {
 		pipeline.LastTag = job.Tag
 	}
 
-	var stepsResp []types.StepResp
+	var stagesAndSteps []types.StageAndStep
 	var steps []Step
-	if err := DB.Order("sort ASC, id ASC").Find(&steps, "pipeline_id = ?", p.ID).Error; err == nil {
+	if err := DB.Order("sort ASC, id ASC").Find(&steps, "pipeline_id = ? AND (stage_id = 0 OR stage_id IS NULL)", p.ID).Error; err == nil {
 		for _, step := range steps {
-			stepsResp = append(stepsResp, step.Format())
+			stagesAndSteps = append(stagesAndSteps, types.StageAndStep{
+				ID:        step.ID,
+				Name:      step.Name,
+				Sort:      step.Sort,
+				CreatedAt: step.CreatedAt,
+				Type:      types.StageAndStepTypeStep,
+			})
 		}
 	} else {
 		hlog.Errorf("get steps error: %s", err)
 	}
-	pipeline.Current = len(steps) - 1
-	pipeline.Steps = stepsResp
+
+	var stages []Stage
+	if err := DB.Order("sort ASC, id ASC").Find(&stages, "pipeline_id = ?", p.ID).Error; err == nil {
+		for _, stage := range stages {
+			st := stage.Format()
+			stagesAndSteps = append(stagesAndSteps, types.StageAndStep{
+				ID:        stage.ID,
+				Name:      stage.Name,
+				Sort:      stage.Sort,
+				CreatedAt: stage.CreatedAt,
+				Type:      types.StageAndStepTypeStage,
+				Children: lo.Map(st.Steps, func(step types.StepResp, _ int) types.StageAndStep {
+					return types.StageAndStep{ID: step.ID, Name: step.Name, Sort: step.Sort, CreatedAt: step.CreatedAt, Type: types.StageAndStepTypeStep}
+				}),
+			})
+		}
+	} else {
+		hlog.Errorf("get stages error: %s", err)
+	}
+
+	sort.Slice(stagesAndSteps, func(i, j int) bool {
+		if stagesAndSteps[i].Sort != stagesAndSteps[j].Sort {
+			return stagesAndSteps[i].Sort < stagesAndSteps[j].Sort
+		}
+		return stagesAndSteps[i].CreatedAt.Before(stagesAndSteps[j].CreatedAt)
+	})
+	pipeline.StagesAndSteps = stagesAndSteps
 
 	return pipeline
 }
@@ -171,7 +203,6 @@ func (p *Pipeline) ListFormat() types.PipelineResp {
 	} else {
 		hlog.Errorf("get steps error: %s", err)
 	}
-	pipeline.Current = len(steps) - 1
 	pipeline.Steps = stepsResp
 
 	return pipeline

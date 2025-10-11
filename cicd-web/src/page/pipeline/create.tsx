@@ -9,8 +9,6 @@ export default function NewPipeline() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [pipelineName, setPipelineName] = useState<string>("");
-
   const [treeData, setTreeData] = useState<TreeDataNode[]>([]);
 
   useEffect(() => {
@@ -30,15 +28,26 @@ export default function NewPipeline() {
     const res = await fetchRequest("/api/pipeline/" + searchParams.get("id"), {
       method: "GET",
     });
-    setPipelineName(res.name);
     setTreeData([
       {
         title: res.name,
         key: res.id,
-        children: res.steps?.map((step: any) => {
+        isLeaf: false,
+        children: res.stages_and_steps?.map((item: any) => {
           return {
-            title: step.name,
-            key: step.id,
+            title: item.name,
+            key: item.id,
+            isLeaf: item.type === "step",
+            children:
+              item.type === "stage"
+                ? item.children.map((child: any) => {
+                    return {
+                      title: child.name,
+                      key: child.id,
+                      isLeaf: true,
+                    };
+                  })
+                : undefined,
           };
         }),
       },
@@ -46,24 +55,21 @@ export default function NewPipeline() {
   };
 
   const onSelect: TreeProps["onSelect"] = (selectedKeys, info) => {
-    console.log("selected", selectedKeys, info);
     if (selectedKeys[0] === "new_pipeline") {
       navigate("/new_pipeline/pipeline");
       return;
-    } else if (
-      selectedKeys[0] === pipelineName ||
-      selectedKeys.length === 0 ||
-      (info.node.children ?? []).length > 0
-    ) {
+    } else if (info.node.pos === '0-0' && selectedKeys[0] === Number(searchParams.get("id"))) {
       navigate("/new_pipeline/pipeline?id=" + searchParams.get("id"));
     } else {
-      console.log("selectedKeys[0]", selectedKeys);
-      navigate(
-        "/new_pipeline/step?id=" +
-          searchParams.get("id") +
-          "&step_id=" +
-          selectedKeys[0]
-      );
+      let navigateUri = `/new_pipeline/step?id=${searchParams.get(
+        "id"
+      )}&step_id=${selectedKeys[0]}`;
+      if (!info.node.isLeaf) {
+        navigateUri = `/new_pipeline/stage?id=${searchParams.get(
+          "id"
+        )}&stage_id=${selectedKeys[0]}`;
+      }
+      navigate(navigateUri);
     }
   };
 
@@ -120,10 +126,35 @@ export default function NewPipeline() {
       }
     }
     setTreeData(data);
-    await fetchRequest("/api/sort_step/" + searchParams.get("id"), {
+    const sorts = data[0];
+    let stages = [];
+    let steps = [];
+    for (let i = 0; i < (sorts?.children || []).length; i++) {
+      const item = (sorts?.children || [])[i];
+      if (item.isLeaf) {
+        steps.push({
+          id: item.key,
+          sort: i,
+        });
+        for (let j = 0; j < (item.children || []).length; j++) {
+          const step = (item.children || [])[j];
+          steps.push({
+            id: step.key,
+            sort: j,
+          });
+        }
+      } else {
+        stages.push({
+          id: item.key,
+          sort: i,
+        });
+      }
+    }
+    await fetchRequest("/api/sort_stage_and_step/" + searchParams.get("id"), {
       method: "POST",
       body: JSON.stringify({
-        step_ids: data[0]?.children?.map((item) => item.key),
+        stages,
+        steps,
       }),
     });
   };

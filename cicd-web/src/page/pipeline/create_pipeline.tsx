@@ -37,8 +37,7 @@ export default function NewPipeline() {
     if (pipelineId) {
       loadPipelineDetail();
     }
-    console.log(userinfo);
-    
+
     if (userinfo.is_admin) {
       loadRoleData();
     }
@@ -274,15 +273,26 @@ export default function NewPipeline() {
               保存
             </Button>
             {pipelineId && (
-              <Button
-                color="default"
-                variant="solid"
-                onClick={() =>
-                  navigate("/new_pipeline/step?id=" + searchParams.get("id"))
-                }
-              >
-                创建Step
-              </Button>
+              <>
+                <Button
+                  color="default"
+                  variant="solid"
+                  onClick={() =>
+                    navigate("/new_pipeline/stage?id=" + searchParams.get("id"))
+                  }
+                >
+                  创建Stage
+                </Button>
+                <Button
+                  color="default"
+                  variant="solid"
+                  onClick={() =>
+                    navigate("/new_pipeline/step?id=" + searchParams.get("id"))
+                  }
+                >
+                  创建Step
+                </Button>
+              </>
             )}
           </Space>
         </Form.Item>

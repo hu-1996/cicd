@@ -20,26 +20,25 @@ import (
 var jobChan = make(chan *JobExec, 10000)
 
 type JobExec struct {
-	Job       dal.Job
-	JobRunner dal.JobRunner
-	Git       dal.Git
+	Job           dal.Job
+	Git           dal.Git
+	JobRunner     dal.JobRunner
+	AllJobRunners []dal.JobRunner
 }
 
-func NewJobExec(job dal.Job, jobRunner dal.JobRunner, git dal.Git) *JobExec {
+func NewJobExec(job dal.Job, jobRunners []dal.JobRunner, git dal.Git) *JobExec {
 	return &JobExec{
-		Job:       job,
-		JobRunner: jobRunner,
-		Git:       git,
+		Job:           job,
+		Git:           git,
+		AllJobRunners: jobRunners,
 	}
 }
 
 func (j *JobExec) AddJob() {
-	if j.JobRunner.Status == dal.Queueing {
-		jobChan <- j
-	}
+	jobChan <- j
 }
 
-func (j *JobExec) UpdateJobRunner(status dal.Status, message string, runnerIds dal.AssignRunnerIds, startTime *time.Time, endTime *time.Time) {
+func (j *JobExec) UpdateJobRunner(jobRunner dal.JobRunner, status dal.Status, message string, runnerIds dal.AssignRunnerIds, startTime *time.Time, endTime *time.Time) {
 	up := map[string]interface{}{"status": status, "message": message}
 	if len(runnerIds) > 0 {
 		up["assign_runner_ids"] = runnerIds
@@ -50,91 +49,94 @@ func (j *JobExec) UpdateJobRunner(status dal.Status, message string, runnerIds d
 	if endTime != nil {
 		up["end_time"] = endTime
 	}
-	dal.DB.Model(&dal.JobRunner{}).Where("id = ?", j.JobRunner.ID).Updates(up)
+	dal.DB.Model(&dal.JobRunner{}).Where("id = ?", jobRunner.ID).Updates(up)
 }
 
 func Run() {
 	for job := range jobChan {
-		hlog.Infof("start job: %+v", job)
+		for _, jr := range job.AllJobRunners {
+			hlog.Infof("start job runner: %+v", jr)
 
-		if job.Git.ID > 0 {
-			if job.Git.CommitID == "" {
-				job.UpdateJobRunner(dal.Failed, "git commit id is empty", nil, nil, nil)
-				continue
-			}
-		}
-
-		// 检查任务是否被取消
-		var jobRunner dal.JobRunner
-		if err := dal.DB.Last(&jobRunner, "id = ?", job.JobRunner.ID).Error; err != nil {
-			hlog.Errorf("get job runner[%d] error: %s", job.JobRunner.ID, err)
-			continue
-		}
-
-		if jobRunner.Status != dal.Queueing {
-			hlog.Infof("job runner[%d] status is not queueing, skip", job.JobRunner.ID)
-			continue
-		}
-
-		var s dal.Step
-		if err := dal.DB.Last(&s, "id = ?", job.JobRunner.StepID).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				hlog.Infof("step[%d] not found", job.JobRunner.StepID)
-				continue
-			}
-			hlog.Errorf("get step[%d] error: %s", job.JobRunner.StepID, err)
-			job.UpdateJobRunner(dal.Failed, err.Error(), nil, nil, nil)
-			continue
-		}
-
-		runners, err := matchRunners(s.RunnerLabelMatch)
-		if err != nil {
-			hlog.Errorf("detect idle runners error: %s", err)
-			job.UpdateJobRunner(dal.Failed, err.Error(), nil, nil, nil)
-			continue
-		}
-		start := time.Now()
-		if len(runners) > 0 {
-			if s.MultipleRunnerExec {
-				var runnerIds dal.AssignRunnerIds
-				var status dal.Status
-				var message string
-				for _, runner := range runners {
-					runnerIds = append(runnerIds, runner.ID)
-					// 发送到runner
-					if err := sendJob(runner, *job); err != nil {
-						hlog.Errorf("send job error: %s", err)
-						if status == "" {
-							status = dal.Failed
-						} else if status == dal.Success {
-							status = dal.PartialRunning
-						}
-						message += fmt.Sprintf("send job to runner[%s] error: %s; ", runner.Name, err)
-						continue
-					}
-
-					// if step success
-					if status == dal.Failed || status == dal.PartialRunning {
-						status = dal.PartialRunning
-					} else {
-						status = dal.Running
-					}
+			if job.Git.ID > 0 {
+				if job.Git.CommitID == "" {
+					job.UpdateJobRunner(jr, dal.Failed, "git commit id is empty", nil, nil, nil)
+					continue
 				}
-				job.UpdateJobRunner(status, message, runnerIds, &start, nil)
-			} else {
-				for _, runner := range runners {
-					if runner.PipelineID == 0 {
+			}
+
+			// 检查任务是否被取消
+			var jobRunner dal.JobRunner
+			if err := dal.DB.Last(&jobRunner, "id = ?", jr.ID).Error; err != nil {
+				hlog.Errorf("get job runner[%d] error: %s", jr.ID, err)
+				continue
+			}
+
+			if jobRunner.Status != dal.Queueing {
+				hlog.Infof("job runner[%d] status is not queueing, skip", jr.ID)
+				continue
+			}
+
+			var s dal.Step
+			if err := dal.DB.Last(&s, "id = ?", jr.StepID).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					hlog.Infof("step[%d] not found", jr.StepID)
+					continue
+				}
+				hlog.Errorf("get step[%d] error: %s", jr.StepID, err)
+				job.UpdateJobRunner(jr, dal.Failed, err.Error(), nil, nil, nil)
+				continue
+			}
+
+			runners, err := matchRunners(s.RunnerLabelMatch)
+			if err != nil {
+				hlog.Errorf("detect idle runners error: %s", err)
+				job.UpdateJobRunner(jr, dal.Failed, err.Error(), nil, nil, nil)
+				continue
+			}
+			start := time.Now()
+			if len(runners) > 0 {
+				if s.MultipleRunnerExec {
+					var runnerIds dal.AssignRunnerIds
+					var status dal.Status
+					var message string
+					for _, runner := range runners {
+						runnerIds = append(runnerIds, runner.ID)
 						// 发送到runner
-						runnerIds := dal.AssignRunnerIds{runner.ID}
-						if err := sendJob(runner, *job); err != nil {
+						if err := sendJob(runner, *job, jr); err != nil {
 							hlog.Errorf("send job error: %s", err)
-							job.UpdateJobRunner(dal.Failed, err.Error(), runnerIds, nil, nil)
-							break
+							switch status {
+							case "":
+								status = dal.Failed
+							case dal.Success:
+								status = dal.PartialRunning
+							}
+							message += fmt.Sprintf("send job to runner[%s] error: %s; ", runner.Name, err)
+							continue
 						}
 
 						// if step success
-						job.UpdateJobRunner(dal.Running, "", runnerIds, &start, nil)
-						break
+						if status == dal.Failed || status == dal.PartialRunning {
+							status = dal.PartialRunning
+						} else {
+							status = dal.Running
+						}
+					}
+					job.UpdateJobRunner(jr, status, message, runnerIds, &start, nil)
+				} else {
+					for _, runner := range runners {
+						if runner.PipelineID == 0 || (runner.StageID == jr.StageID && runner.StageParallel) {
+							// 发送到runner
+							runnerIds := dal.AssignRunnerIds{runner.ID}
+							if err := sendJob(runner, *job, jr); err != nil {
+								hlog.Errorf("send job error: %s", err)
+								job.UpdateJobRunner(jr, dal.Failed, err.Error(), runnerIds, nil, nil)
+								break
+							}
+
+							// if step success
+							job.UpdateJobRunner(jr, dal.Running, "", runnerIds, &start, nil)
+							break
+						}
 					}
 				}
 			}
@@ -142,7 +144,7 @@ func Run() {
 	}
 }
 
-func matchRunners(labelMatch string) ([]dal.Runner, error) {
+func matchRunners(labelMatch string) ([]*dal.Runner, error) {
 	var runnerLabels []dal.RunnerLabel
 	if err := dal.DB.Find(&runnerLabels, "label = ?", labelMatch).Error; err != nil {
 		return nil, err
@@ -156,7 +158,7 @@ func matchRunners(labelMatch string) ([]dal.Runner, error) {
 		return nil, fmt.Errorf("no runner match label: %s", labelMatch)
 	}
 
-	var runners []dal.Runner
+	var runners []*dal.Runner
 	if err := dal.DB.Where("status = ? AND enable = ? AND id IN (?)", dal.Online, true, runnerIds).Find(&runners).Error; err != nil {
 		return nil, err
 	}
@@ -167,8 +169,9 @@ func matchRunners(labelMatch string) ([]dal.Runner, error) {
 	return runners, nil
 }
 
-func sendJob(runner dal.Runner, job JobExec) error {
+func sendJob(runner *dal.Runner, job JobExec, jobRunner dal.JobRunner) error {
 	client := &http.Client{}
+	job.JobRunner = jobRunner
 	jsonBytes, _ := json.Marshal(job)
 	httpReq, _ := http.NewRequest("POST", runner.Endpoint+"/start_job", bytes.NewReader(jsonBytes))
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -201,7 +204,10 @@ func sendJob(runner dal.Runner, job JobExec) error {
 	if err := dal.DB.Last(&pipeline, "id = ?", job.Job.PipelineID).Error; err != nil {
 		return fmt.Errorf("get pipeline[%d] error: %s", job.Job.PipelineID, err)
 	}
+
 	runner.PipelineName = pipeline.Name
+	runner.StageID = jobRunner.StageID
+	runner.StageParallel = jobRunner.Parallel
 	dal.DB.Save(&runner)
 	hlog.Info("send job success")
 	return nil

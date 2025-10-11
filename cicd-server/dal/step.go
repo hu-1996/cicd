@@ -12,6 +12,7 @@ import (
 type Step struct {
 	gorm.Model
 	PipelineID         uint
+	StageID            uint
 	Name               string
 	Commands           ListString
 	Trigger            Trigger
@@ -49,12 +50,14 @@ const (
 func (s *Step) Format() types.StepResp {
 	step := types.StepResp{
 		ID:                 s.ID,
+		StageID:            s.StageID,
 		Name:               s.Name,
 		Commands:           s.Commands,
 		Trigger:            string(s.Trigger),
 		RunnerLabelMatch:   s.RunnerLabelMatch,
 		MultipleRunnerExec: s.MultipleRunnerExec,
 		Sort:               s.Sort,
+		CreatedAt:          s.CreatedAt,
 	}
 
 	var job Job

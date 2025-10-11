@@ -130,6 +130,7 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 
 	var git dal.Git
 	var runners []dal.JobRunner
+	var needRunners []dal.JobRunner
 	if err := dal.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&j).Error; err != nil {
 			return err
@@ -150,12 +151,32 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 			return err
 		}
 
+		var (
+			parallel bool
+			stageID  uint
+		)
 		for i, step := range steps {
+			if i == 0 {
+				var stage dal.Stage
+				if err := dal.DB.Order("sort ASC, id ASC").First(&stage, "id = ?", step.StageID).Error; err != nil {
+					return err
+				}
+				parallel = stage.Parallel
+				stageID = step.StageID
+			}
+
+			status := dal.Pending
+			if (parallel && stageID == step.StageID) || i == 0 {
+				status = dal.Queueing
+			}
+
 			runner := dal.JobRunner{
 				JobID:         j.ID,
+				StageID:       step.StageID,
 				StepID:        step.ID,
 				StepSort:      step.Sort,
-				Status:        lo.Ternary(i == 0, dal.Queueing, dal.Pending),
+				Parallel:      parallel,
+				Status:        status,
 				Trigger:       step.Trigger,
 				Commands:      step.Commands,
 				TriggerUserId: user.Id,
@@ -165,6 +186,12 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 			}
 
 			runners = append(runners, runner)
+			if parallel && stageID == step.StageID {
+				needRunners = append(needRunners, runner)
+			}
+		}
+		if len(needRunners) == 0 {
+			needRunners = append(needRunners, runners[0])
 		}
 
 		return nil
@@ -196,7 +223,8 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 			return
 		}
 	}
-	jobexec.NewJobExec(j, runners[0], git).AddJob()
+
+	jobexec.NewJobExec(j, needRunners, git).AddJob()
 	c.JSON(consts.StatusOK, utils.H{"data": "success"})
 }
 
@@ -272,7 +300,26 @@ func StartJobStep(ctx context.Context, c *app.RequestContext) {
 			git.Branch = j.Branch
 		}
 	}
-	jobexec.NewJobExec(j, jobRunner, git).AddJob()
+
+	var needRunners []dal.JobRunner
+	if jobRunner.Parallel {
+		if err := dal.DB.Find(&needRunners, "job_id = ? AND stage_id = ?", j.ID, jobRunner.StageID).Error; err != nil {
+			c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+			return
+		}
+		for _, runner := range needRunners {
+			if runner.Status == dal.Pending {
+				runner.Status = dal.Queueing
+				if err := dal.DB.Save(&runner).Error; err != nil {
+					c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
+					return
+				}
+			}
+		}
+	} else {
+		needRunners = append(needRunners, jobRunner)
+	}
+	jobexec.NewJobExec(j, needRunners, git).AddJob()
 
 	c.JSON(consts.StatusOK, utils.H{"data": "success"})
 }

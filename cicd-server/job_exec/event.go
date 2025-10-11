@@ -72,7 +72,7 @@ func StartEventProcess() {
 		if sum == len(jobRunner.AssignRunnerIds) {
 			// 判断是否有下一步
 			if !StartNextStep(jobRunner.ID) {
-				StartOtherStep(jobRunner.AssignRunnerIds)
+				StartOtherStep(jobRunner)
 			}
 		}
 	}
@@ -123,7 +123,25 @@ func StartNextStep(jobRunnerID uint) bool {
 				hlog.Errorf("update job runner error: %s", err)
 				return false
 			}
-			NewJobExec(job, nextRunner, git).AddJob()
+
+			var needRunners []dal.JobRunner
+			if nextRunner.Parallel {
+				if err := dal.DB.Find(&needRunners, "job_id = ? AND stage_id = ?", job.ID, nextRunner.StageID).Error; err != nil {
+					return false
+				}
+				for _, runner := range needRunners {
+					if runner.Status == dal.Pending {
+						runner.Status = dal.Queueing
+						if err := dal.DB.Save(&runner).Error; err != nil {
+							hlog.Errorf("update job runner error: %s", err)
+							return false
+						}
+					}
+				}
+			} else {
+				needRunners = append(needRunners, nextRunner)
+			}
+			NewJobExec(job, needRunners, git).AddJob()
 			return true
 		}
 	}
@@ -131,13 +149,15 @@ func StartNextStep(jobRunnerID uint) bool {
 	return false
 }
 
-func StartOtherStep(assignRunnerIds []uint) {
-	if len(assignRunnerIds) == 0 {
+func StartOtherStep(jobRunner dal.JobRunner) {
+	if len(jobRunner.AssignRunnerIds) == 0 {
 		return
 	}
+	var assignRunnerIds []uint
+	assignRunnerIds = append(assignRunnerIds, jobRunner.AssignRunnerIds...)
 
 	var jobRunners []dal.JobRunner
-	if err := dal.DB.Find(&jobRunners, "status = ?", dal.Queueing).Error; err != nil {
+	if err := dal.DB.Find(&jobRunners, "id != ? AND status = ?", jobRunner.ID, dal.Queueing).Error; err != nil {
 		return
 	}
 
@@ -201,7 +221,25 @@ func StartOtherStep(assignRunnerIds []uint) {
 				git.Branch = job.Branch
 			}
 			usedAssignRunnerIds[runnerId] = struct{}{}
-			NewJobExec(job, jobRunner, git).AddJob()
+
+			var needRunners []dal.JobRunner
+			if jobRunner.Parallel {
+				if err := dal.DB.Find(&needRunners, "job_id = ? AND stage_id = ?", job.ID, jobRunner.StageID).Error; err != nil {
+					return
+				}
+				for _, runner := range needRunners {
+					if runner.Status == dal.Pending {
+						runner.Status = dal.Queueing
+						if err := dal.DB.Save(&runner).Error; err != nil {
+							hlog.Errorf("update job runner error: %s", err)
+							return
+						}
+					}
+				}
+			} else {
+				needRunners = append(needRunners, jobRunner)
+			}
+			NewJobExec(job, needRunners, git).AddJob()
 			break
 		}
 	}
