@@ -40,4 +40,5 @@ type StepResp struct {
 	MultipleRunnerExec bool      `json:"multiple_runner_exec"`
 	Sort               int       `json:"sort"`
 	CreatedAt          time.Time `json:"created_at"`
+	Parallel           bool      `json:"parallel"`
 }

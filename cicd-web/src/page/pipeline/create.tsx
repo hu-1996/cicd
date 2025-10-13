@@ -58,7 +58,10 @@ export default function NewPipeline() {
     if (selectedKeys[0] === "new_pipeline") {
       navigate("/new_pipeline/pipeline");
       return;
-    } else if (info.node.pos === '0-0' && selectedKeys[0] === Number(searchParams.get("id"))) {
+    } else if (
+      info.node.pos === "0-0" &&
+      selectedKeys[0] === Number(searchParams.get("id"))
+    ) {
       navigate("/new_pipeline/pipeline?id=" + searchParams.get("id"));
     } else {
       let navigateUri = `/new_pipeline/step?id=${searchParams.get(
@@ -160,18 +163,23 @@ export default function NewPipeline() {
   };
 
   return (
-    <div className="flex justify-start">
-      <Tree.DirectoryTree
-        showLine
-        draggable
-        expandAction={false}
-        switcherIcon={<DownOutlined />}
-        onSelect={onSelect}
-        treeData={treeData}
-        className="w-[300px] p-5"
-        onDrop={onDrop}
-      />
-      <Outlet />
-    </div>
+    <>
+      {treeData.length > 0 && (
+        <div className="flex justify-start">
+          <Tree.DirectoryTree
+            showLine
+            draggable
+            defaultExpandAll
+            expandAction={false}
+            switcherIcon={<DownOutlined />}
+            onSelect={onSelect}
+            treeData={treeData}
+            className="w-[300px] p-5"
+            onDrop={onDrop}
+          />
+          <Outlet />
+        </div>
+      )}
+    </>
   );
 }

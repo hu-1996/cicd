@@ -68,5 +68,6 @@ func (s *Step) Format() types.StepResp {
 			step.LastRunnerID = jobRunner.ID
 		}
 	}
+	step.Parallel = jobRunner.Parallel
 	return step
 }

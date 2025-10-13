@@ -2,6 +2,7 @@ package jobexec
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"cicd-server/dal"
@@ -12,6 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
+var mutex sync.Mutex
 var eventChan = make(chan *types.Event, 10000)
 
 func AddEvent(event *types.Event) {
@@ -79,6 +81,9 @@ func StartEventProcess() {
 }
 
 func StartNextStep(jobRunnerID uint) bool {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	var jobRunner dal.JobRunner
 	if err := dal.DB.Last(&jobRunner, "id = ?", jobRunnerID).Error; err != nil {
 		return false
@@ -86,18 +91,28 @@ func StartNextStep(jobRunnerID uint) bool {
 	if jobRunner.Status != dal.Success {
 		return false
 	}
+	if jobRunner.Parallel && jobRunner.StageID > 0 {
+		var jobRunners []dal.JobRunner
+		if err := dal.DB.Find(&jobRunners, "job_id = ? AND stage_id = ?", jobRunner.JobID, jobRunner.StageID).Error; err != nil {
+			return false
+		}
+		for _, runner := range jobRunners {
+			if runner.Status != dal.Success {
+				return false
+			}
+		}
+	}
 
 	var job dal.Job
 	if err := dal.DB.Last(&job, "id = ?", jobRunner.JobID).Error; err != nil {
 		return false
 	}
 
-	tempJobRunnerID := jobRunnerID
 	var oldRunner dal.JobRunner
 	if err := dal.DB.First(&oldRunner, "job_id = ? AND step_id = ?", jobRunner.JobID, jobRunner.StepID).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return false
 	}
-	tempJobRunnerID = oldRunner.ID
+	tempJobRunnerID := oldRunner.ID
 
 	var runners []dal.JobRunner
 	if err := dal.DB.Find(&runners, "job_id = ? AND status = ? AND id > ?", job.ID, dal.Pending, tempJobRunnerID).Error; err != nil {
@@ -157,7 +172,20 @@ func StartOtherStep(jobRunner dal.JobRunner) {
 	assignRunnerIds = append(assignRunnerIds, jobRunner.AssignRunnerIds...)
 
 	var jobRunners []dal.JobRunner
-	if err := dal.DB.Find(&jobRunners, "id != ? AND status = ?", jobRunner.ID, dal.Queueing).Error; err != nil {
+	db := dal.DB.Where("id != ? AND status = ?", jobRunner.ID, dal.Queueing)
+	if jobRunner.Parallel && jobRunner.StageID > 0 {
+		var jobRunners []dal.JobRunner
+		if err := dal.DB.Find(&jobRunners, "job_id = ? AND stage_id = ?", jobRunner.JobID, jobRunner.StageID).Error; err != nil {
+			return
+		}
+		for _, runner := range jobRunners {
+			if runner.Status != dal.Success {
+				db = db.Where("job_id != ?", runner.JobID)
+				break
+			}
+		}
+	}
+	if err := db.Find(&jobRunners).Error; err != nil {
 		return
 	}
 
