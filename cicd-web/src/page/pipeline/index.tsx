@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Card, Button, message, List, Popconfirm, Space } from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Card, Button, message, List, Popconfirm, Space, Input } from "antd";
 import {
   SettingOutlined,
   CaretRightOutlined,
@@ -15,9 +15,36 @@ import { fetchRequest } from "../../utils/fetch";
 
 export default function Pipeline() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [pipelines, setPipelines] = useState([]);
+  const [originPipelines, setOriginPipelines] = useState<any[]>([]);
+  const [pipelines, setPipelines] = useState<any[]>([]);
+  const [search, setSearch] = useState<string>("");
+
+  const q = searchParams.get("q");
+
+  useMemo(() => {
+    if (!search) {
+      setPipelines(originPipelines);
+      return;
+    }
+    let filtered: any[] = [];
+    originPipelines.forEach((item: any) => {
+      const pipelines = item.pipelines.filter((pipeline: any) => {
+        return pipeline.name.includes(search);
+      });
+      if (pipelines.length > 0) {
+        filtered.push({
+          ...item,
+          pipelines,
+        });
+      }
+    });
+    setPipelines(filtered);
+  }, [search, originPipelines]);
+
   useEffect(() => {
+    setSearch(q || "");
     loadPipeline();
     const timer = setInterval(() => {
       loadPipeline();
@@ -33,6 +60,7 @@ export default function Pipeline() {
       method: "GET",
     });
     setPipelines(res || []);
+    setOriginPipelines(res || []);
   };
 
   const startJob = async (id: number) => {
@@ -67,9 +95,27 @@ export default function Pipeline() {
     loadPipeline();
   };
 
+  const onSearch = (e: any) => {
+    setSearch(e.target.value);
+    const url = new URL(window.location.href);
+    if (e.target.value) {
+      url.searchParams.set("q", e.target.value);
+    } else {
+      url.searchParams.delete("q");
+    }
+
+    // 使用history.pushState更新URL而不刷新页面
+    history.pushState({}, "", url.toString());
+  };
+
   return (
     <div className="p-2">
       <Space>
+        <Input
+          placeholder="搜索Pipeline"
+          onChange={onSearch}
+          value={search}
+        ></Input>
         <Button type="primary" onClick={toCreate}>
           新建Pipeline
         </Button>
@@ -92,7 +138,7 @@ export default function Pipeline() {
           </Space>
         ))}
       </Space>
-      {pipelines.map((item: any) => (
+      {pipelines?.map((item: any) => (
         <div key={item.group_name} className="mb-4 mt-4">
           <div className="text-lg font-bold pt-2 pb-2 pl-4 pr-4 bg-[#E8EEF0] text-[#3F82C9] rounded-t-md">
             {item.group_name || "Default"}
@@ -121,7 +167,12 @@ export default function Pipeline() {
                         <SettingOutlined
                           key={"setting"}
                           onClick={() =>
-                            navigate("/new_pipeline/pipeline?id=" + item.id)
+                            navigate(
+                              "/new_pipeline/pipeline?id=" +
+                                item.id +
+                                "&q=" +
+                                search
+                            )
                           }
                         />,
                         <CopyOutlined
@@ -144,7 +195,7 @@ export default function Pipeline() {
                       <div className="text-[12px]">
                         最后更新时间：{item.last_update_at}
                       </div>
-                      <div className="flex">
+                      <div className="flex mt-1 min-h-[26px]">
                         <Status steps={item.steps} />
                       </div>
                     </Card>

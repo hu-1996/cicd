@@ -156,7 +156,7 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 			stageID  uint
 		)
 		for i, step := range steps {
-			if i == 0 {
+			if i == 0 && step.StageID > 0 {
 				var stage dal.Stage
 				if err := dal.DB.Order("sort ASC, id ASC").First(&stage, "id = ?", step.StageID).Error; err != nil {
 					return err

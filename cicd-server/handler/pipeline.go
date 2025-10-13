@@ -385,7 +385,10 @@ func SortStageAndStep(ctx context.Context, c *app.RequestContext) {
 			}
 		}
 		for _, s := range req.Steps {
-			if err := tx.Model(&dal.Step{}).Where("id = ?", s.ID).Update("sort", s.Sort).Error; err != nil {
+			if err := tx.Model(&dal.Step{}).Where("id = ?", s.ID).Updates(map[string]interface{}{
+				"sort":     s.Sort,
+				"stage_id": s.StageID,
+			}).Error; err != nil {
 				return err
 			}
 		}

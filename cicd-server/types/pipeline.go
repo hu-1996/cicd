@@ -94,6 +94,7 @@ type SortStageAndStepReq struct {
 }
 
 type SortReq struct {
-	ID   uint `json:"id"`
-	Sort int  `json:"sort"`
+	ID      uint `json:"id"`
+	Sort    int  `json:"sort"`
+	StageID uint `json:"stage_id,omitempty"`
 }
