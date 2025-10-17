@@ -65,6 +65,12 @@ const IndexApplication: React.FC = () => {
       render: (text) => <span>{text}</span>,
     },
     {
+      title: "IP",
+      dataIndex: "ip",
+      key: "ip",
+      render: (text) => <span>{text || "-"}</span>,
+    },
+    {
       title: "标签",
       dataIndex: "labels",
       key: "labels",

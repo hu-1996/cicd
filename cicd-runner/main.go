@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -53,10 +54,16 @@ func main() {
 }
 
 func registerRunner(name, runnerUrl, serverUrl string, labels []string) {
+	ip, err := GetOutboundIP()
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
 	req := RegisterRunnerReq{
 		Name:     name,
 		Endpoint: runnerUrl,
 		Labels:   labels,
+		IP:       ip.String(),
 	}
 
 	client := &http.Client{}
@@ -76,10 +83,23 @@ func registerRunner(name, runnerUrl, serverUrl string, labels []string) {
 	log.Println("register runner success")
 }
 
+func GetOutboundIP() (net.IP, error) {
+	// 连接到一个外部地址（这里使用Google的DNS服务器）
+	conn, err := net.Dial("udp", "114.114.114.114:53")
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP, nil
+}
+
 type RegisterRunnerReq struct {
 	Name     string   `json:"name" vd:"regexp('^[a-zA-Z0-9_-]+$')"`
 	Endpoint string   `json:"endpoint"`
 	Labels   []string `json:"labels"`
+	IP       string   `json:"ip"`
 }
 
 func createUser() {

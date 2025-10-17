@@ -175,10 +175,15 @@ export default function Pipeline() {
                             )
                           }
                         />,
-                        <CopyOutlined
-                          key={"copy"}
-                          onClick={() => copyPipeline(item.id)}
-                        />,
+                        <Popconfirm
+                          title="提示"
+                          description={`是否复制${item.name}?`}
+                          onConfirm={() => copyPipeline(item.id)}
+                          okText="确定"
+                          cancelText="取消"
+                        >
+                          <CopyOutlined key={"copy"} />
+                        </Popconfirm>,
                         <Popconfirm
                           title="提示"
                           description={`是否删除${item.name}?`}

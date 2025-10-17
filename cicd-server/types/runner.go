@@ -4,6 +4,7 @@ type RegisterRunnerReq struct {
 	Name     string   `json:"name" vd:"regexp('^[a-zA-Z0-9_-]+$')"`
 	Endpoint string   `json:"endpoint"`
 	Labels   []string `json:"labels"`
+	IP       string   `json:"ip"`
 }
 
 type RunnerResp struct {
@@ -15,6 +16,7 @@ type RunnerResp struct {
 	Enable       bool     `json:"enable"`
 	Labels       []string `json:"labels"`
 	CreatedAt    string   `json:"created_at"`
+	IP           string   `json:"ip"`
 }
 
 type ListRunnerReq struct {

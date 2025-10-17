@@ -17,6 +17,7 @@ type Runner struct {
 	Enable        bool `gorm:"default:1"`
 	StageID       uint
 	StageParallel bool
+	IP            string
 }
 
 type RunnerStatus string
@@ -34,6 +35,7 @@ func (r *Runner) Format() types.RunnerResp {
 		PipelineName: r.PipelineName,
 		Status:       string(r.Status),
 		Enable:       r.Enable,
+		IP:           r.IP,
 		CreatedAt:    r.CreatedAt.Format("2006-01-02 15:04:05"),
 	}
 

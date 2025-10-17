@@ -30,6 +30,7 @@ func RegisterRunner(ctx context.Context, c *app.RequestContext) {
 					Endpoint: runner.Endpoint,
 					Status:   dal.Online,
 					Message:  "",
+					IP:       runner.IP,
 				}
 				if err := tx.Create(&r).Error; err != nil {
 					return err
@@ -50,7 +51,10 @@ func RegisterRunner(ctx context.Context, c *app.RequestContext) {
 		if r.Endpoint != runner.Endpoint {
 			return errors.New("runner name already exists")
 		} else {
-			if err := tx.Model(&dal.Runner{}).Where("id = ?", r.ID).Update("status", dal.Online).Error; err != nil {
+			r.Name = runner.Name
+			r.Status = dal.Online
+			r.IP = runner.IP
+			if err := tx.Save(&r).Error; err != nil {
 				return err
 			}
 			if err := tx.Delete(&dal.RunnerLabel{}, "runner_id = ?", r.ID).Error; err != nil {
