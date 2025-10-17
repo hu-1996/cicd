@@ -51,9 +51,13 @@ func RegisterRunner(ctx context.Context, c *app.RequestContext) {
 		if r.Endpoint != runner.Endpoint {
 			return errors.New("runner name already exists")
 		} else {
-			r.Name = runner.Name
+			if runner.Name != "" {
+				r.Name = runner.Name
+			}
 			r.Status = dal.Online
-			r.IP = runner.IP
+			if runner.IP != "" {
+				r.IP = runner.IP
+			}
 			if err := tx.Save(&r).Error; err != nil {
 				return err
 			}

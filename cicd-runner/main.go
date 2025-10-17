@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"cicd-runner/handler"
@@ -54,16 +55,25 @@ func main() {
 }
 
 func registerRunner(name, runnerUrl, serverUrl string, labels []string) {
+	var ipstr string
 	ip, err := GetOutboundIP()
 	if err != nil {
-		log.Fatal(err)
-		return
+		ips, err := GetLocalIPs()
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+
+		ipstr = strings.Join(ips, ",")
+	} else {
+		ipstr = ip.String()
 	}
+
 	req := RegisterRunnerReq{
 		Name:     name,
 		Endpoint: runnerUrl,
 		Labels:   labels,
-		IP:       ip.String(),
+		IP:       ipstr,
 	}
 
 	client := &http.Client{}
@@ -93,6 +103,46 @@ func GetOutboundIP() (net.IP, error) {
 
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 	return localAddr.IP, nil
+}
+
+func GetLocalIPs() ([]string, error) {
+	var ips []string
+
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, iface := range interfaces {
+		// 跳过回环接口和未启用的接口
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+
+			// 跳过IPv6地址和回环地址
+			if ip == nil || ip.IsLoopback() || ip.To4() == nil {
+				continue
+			}
+
+			ips = append(ips, ip.String())
+		}
+	}
+
+	return ips, nil
 }
 
 type RegisterRunnerReq struct {
