@@ -62,12 +62,11 @@ export default function NewPipeline() {
     }
 
     if (pipelineId) {
-      const res = await fetchRequest("/api/update_pipeline/" + pipelineId, {
+      await fetchRequest("/api/update_pipeline/" + pipelineId, {
         method: "PUT",
         body: JSON.stringify(values),
       });
       message.success("更新成功");
-      navigate("/new_pipeline/pipeline?id=" + res.id);
       return;
     }
     const res = await fetchRequest("/api/create_pipeline", {

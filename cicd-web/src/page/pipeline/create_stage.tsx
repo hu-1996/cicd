@@ -49,7 +49,6 @@ export default function NewStage() {
         body: JSON.stringify(values),
       });
       message.success("更新成功");
-      location.reload();
       return;
     }
     const res = await fetchRequest("/api/create_stage", {

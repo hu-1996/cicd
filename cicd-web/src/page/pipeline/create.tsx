@@ -18,6 +18,8 @@ export default function NewPipeline() {
   const [selectedKeys, setSelectedKeys] = useState<any>([]);
 
   const pipelineId = searchParams.get("id");
+  const stageId = searchParams.get("stage_id");
+  const stepId = searchParams.get("step_id");
   const search = searchParams.get("q");
 
   useEffect(() => {
@@ -34,7 +36,6 @@ export default function NewPipeline() {
     const res = await fetchRequest("/api/pipeline/" + pipelineId, {
       method: "GET",
     });
-    setPipeline(res);
 
     const treeData = res.stages_and_steps?.map((item: any) => {
       return {
@@ -54,6 +55,8 @@ export default function NewPipeline() {
       };
     });
     setTreeData(treeData);
+
+    setPipeline(res);
   };
 
   const onPipeline = () => {
@@ -205,18 +208,21 @@ export default function NewPipeline() {
               {pipeline.name}
             </Button>
           </div>
-          <Tree.DirectoryTree
-            showLine
-            selectedKeys={selectedKeys}
-            draggable={{ icon: false }}
-            defaultExpandAll
-            expandAction={false}
-            switcherIcon={<DownOutlined />}
-            onSelect={onSelect}
-            treeData={treeData}
-            className="w-[300px] px-5"
-            onDrop={onDrop}
-          />
+          {(pipeline.name === "New Pipeline" || treeData.length > 0) && (
+            <Tree.DirectoryTree
+              showLine
+              defaultSelectedKeys={selectedKeys}
+              selectedKeys={selectedKeys}
+              draggable={{ icon: false }}
+              defaultExpandAll
+              expandAction={false}
+              switcherIcon={<DownOutlined />}
+              onSelect={onSelect}
+              treeData={treeData}
+              className="w-[300px] px-5"
+              onDrop={onDrop}
+            />
+          )}
         </div>
         <Outlet />
       </div>

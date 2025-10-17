@@ -71,7 +71,6 @@ export default function NewStep() {
         body: JSON.stringify(values),
       });
       message.success("更新成功");
-      location.reload();
       return;
     }
     if (stageId) {
