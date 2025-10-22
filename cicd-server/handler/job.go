@@ -151,18 +151,20 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 			return err
 		}
 
-		var (
-			parallel bool
-			stageID  uint
-		)
+		var stageID uint
+		var parallel bool
 		for i, step := range steps {
-			if i == 0 && step.StageID > 0 {
+			var stepParallel bool
+			if step.StageID > 0 {
 				var stage dal.Stage
 				if err := dal.DB.Order("sort ASC, id ASC").First(&stage, "id = ?", step.StageID).Error; err != nil {
 					return err
 				}
-				parallel = stage.Parallel
-				stageID = step.StageID
+				stepParallel = stage.Parallel
+				if i == 0 {
+					parallel = stage.Parallel
+					stageID = step.StageID
+				}
 			}
 
 			status := dal.Pending
@@ -175,7 +177,7 @@ func StartJob(ctx context.Context, c *app.RequestContext) {
 				StageID:       step.StageID,
 				StepID:        step.ID,
 				StepSort:      step.Sort,
-				Parallel:      parallel,
+				Parallel:      stepParallel,
 				Status:        status,
 				Trigger:       step.Trigger,
 				Commands:      step.Commands,
