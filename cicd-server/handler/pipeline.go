@@ -351,15 +351,40 @@ func CopyPipeline(ctx context.Context, c *app.RequestContext) {
 			}
 		}
 
+		var stages []*dal.Stage
+		if err := tx.Find(&stages, "pipeline_id = ?", p.ID).Error; err != nil {
+			return err
+		}
+		for _, stage := range stages {
+			var steps []*dal.Step
+			if err := tx.Find(&steps, "pipeline_id = ? AND stage_id = ?", p.ID, stage.ID).Error; err != nil {
+				return err
+			}
+
+			stage.ID = 0
+			stage.PipelineID = newP.ID
+			if err := tx.Create(&stage).Error; err != nil {
+				return err
+			}
+
+			for _, step := range steps {
+				step.ID = 0
+				step.PipelineID = newP.ID
+				step.StageID = stage.ID
+			}
+			if err := tx.Create(&steps).Error; err != nil {
+				return err
+			}
+		}
+
 		var steps []*dal.Step
-		if err := tx.Find(&steps, "pipeline_id = ?", p.ID).Error; err != nil {
+		if err := tx.Find(&steps, "pipeline_id = ? AND stage_id = 0", p.ID).Error; err != nil {
 			return err
 		}
 		for _, step := range steps {
 			step.ID = 0
 			step.PipelineID = newP.ID
 		}
-
 		if err := tx.Create(&steps).Error; err != nil {
 			return err
 		}
