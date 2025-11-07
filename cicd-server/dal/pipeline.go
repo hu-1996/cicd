@@ -161,15 +161,6 @@ func (p *Pipeline) ListFormat() types.PipelineResp {
 		pipeline.Roles = lo.Map(pipelineRoles, func(v PipelineRole, _ int) uint { return v.RoleID })
 	}
 
-	var git Git
-	if err := DB.Last(&git, "pipeline_id = ?", p.ID).Error; err == nil {
-		pipeline.UseGit = true
-		pipeline.Repository = git.Repository
-		pipeline.Branch = git.Branch
-		pipeline.Username = git.Username
-		pipeline.Password = git.Password
-	}
-
 	var job Job
 	if err := DB.Last(&job, "pipeline_id = ?", p.ID).Error; err == nil {
 		pipeline.LastTag = job.Tag

@@ -8,6 +8,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"gorm.io/gorm"
 )
 
 func StageDetail(ctx context.Context, c *app.RequestContext) {
@@ -100,9 +101,14 @@ func DeleteStage(ctx context.Context, c *app.RequestContext) {
 		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
 		return
 	}
-	if err := dal.DB.Delete(&s).Error; err != nil {
-		c.JSON(consts.StatusInternalServerError, utils.H{"error": err.Error()})
-		return
-	}
+	dal.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&s).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&dal.Step{}, "stage_id = ?", stage.ID).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 	c.JSON(consts.StatusOK, utils.H{"data": "success"})
 }
